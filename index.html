@@ -232,10 +232,13 @@
 
         @media (max-width: 1280px) { .content-area { padding: 16px; } }
         @media (max-width: 1024px) {
-            .tab-view { overflow-y: auto; }
+            body { height: auto; min-height: 100vh; overflow-x: hidden; overflow-y: auto; }
+            .app-wrapper { height: auto; min-height: 100vh; overflow: visible; }
+            .content-area { height: auto; overflow: visible; }
+            .tab-view { height: auto; overflow: visible; }
             .grid-4, .grid-3 { grid-template-columns: repeat(2, 1fr); }
             .grid-1-2 { grid-template-columns: 1fr; }
-            .sidebar { position: fixed; left: -260px; top: 0; bottom: 0; box-shadow: 10px 0 30px rgba(0,0,0,0.6); }
+            .sidebar { position: fixed; left: -260px; top: 0; bottom: 0; height: 100vh; box-shadow: 10px 0 30px rgba(0,0,0,0.6); }
             .sidebar.open { left: 0; }
             .mobile-toggle { display: block; }
             .topbar { display: flex !important; }
@@ -248,11 +251,18 @@
             .modal-tabs { overflow-x: auto; white-space: nowrap; }
             .content-area { padding: 12px; }
             .panel-header { padding: 14px 16px; }
-            .panel-body { padding: 16px; }
+            .panel-body { padding: 16px; overflow: visible; }
             .table-wrap { overflow-x: auto; }
             .sublab-layout { grid-template-columns: 1fr; }
             .metric-val { font-size: 1.5rem; }
             .phone-mockup-wrapper { min-height: 500px; flex: none; }
+            .grid-1-2 { height: auto !important; grid-auto-rows: 280px; }
+            .chart-wrapper { height: 280px; flex: none; }
+            .terminal { min-height: 320px; }
+            .topbar { padding: 0 12px; }
+            .traffic-totals { gap: 8px; }
+            .modal-overlay { padding: 12px; align-items: flex-start; overflow-y: auto; }
+            .modal { max-height: none; }
         }
     </style>
 </head>
@@ -306,7 +316,7 @@
             </div>
         </header>
 
-        <button class="mobile-toggle" style="position:absolute; top:16px; left:20px; z-index:40;" id="mobile-dash-btn" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fa-solid fa-bars"></i></button>
+        <button class="mobile-toggle" style="position:fixed; top:14px; left:16px; z-index:40;" id="mobile-dash-btn" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fa-solid fa-bars"></i></button>
 
         <div class="content-area">
 

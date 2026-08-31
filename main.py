@@ -885,24 +885,41 @@ async def _dash_heartbeat(conn: DashboardConnection, manager: DashboardManager) 
 dashboard_mgr = DashboardManager()
 
 
-def origin_allowed(origin: Optional[str]) -> bool:
-    if not origin:
-        return True                       
+def _origin_host(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    v = value.strip()
+    if not v:
+        return None
     try:
-        host = urlparse(origin).hostname or ""
+        parsed = urlparse(v if "://" in v else f"//{v}")
+        return (parsed.hostname or "").lower() or None
     except Exception:
-        return False
+        return None
+
+
+def origin_allowed(origin: Optional[str], server_host: Optional[str] = None) -> bool:
+    if not origin:
+        return True
+    host = _origin_host(origin)
     if not host:
         return False
-    
-    
-    
-    
-    
     if host in ("localhost", "127.0.0.1", "::1"):
         return True
-    expected = urlparse(PLATFORM_CTX.public_base_url).hostname or ""
-    return host == expected
+    expected = _origin_host(PLATFORM_CTX.public_base_url)
+    if expected and host == expected:
+        return True
+    if server_host:
+        sh = _origin_host(server_host)
+        if sh and host == sh:
+            return True
+    if (
+        host.endswith(".up.railway.app")
+        or host.endswith(".railway.app")
+        or host.endswith("app.github.dev")
+    ):
+        return True
+    return False
 
 
 def platform_payload(ctx: Optional[PlatformContext] = None) -> dict:
@@ -1628,7 +1645,10 @@ async def dashboard_ws(websocket: WebSocket):
     if not authed:
         await websocket.close(code=4401)
         return
-    if not origin_allowed(websocket.headers.get("origin")):
+    if not origin_allowed(
+        websocket.headers.get("origin"),
+        websocket.headers.get("host") or (websocket.client.host if websocket.client else None),
+    ):
         await websocket.close(code=4403)
         return
     if len(dashboard_mgr.connections) >= MAX_DASHBOARD_CONNECTIONS:
