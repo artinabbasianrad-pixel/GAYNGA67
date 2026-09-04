@@ -70,7 +70,7 @@
         .conn-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; }
         .uptime-bar { height: 8px; background: var(--bg-hover); border-radius: 4px; overflow: hidden; margin-top: 8px; }
         .uptime-fill { height: 100%; background: var(--success); border-radius: 4px; transition: width 0.6s ease; }
-        .auth-error { display: none; margin: 12px 24px 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--danger-bg); border: 1px solid var(--danger); color: var(--danger); font-size: 0.8rem; font-weight: 600; line-height: 1.45; }
+        .auth-error { display: none; margin: 12px 24px 20px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--danger-bg); border: 1px solid var(--danger); color: var(--danger); font-size: 0.8rem; font-weight: 600; line-height: 1.45; }
         .auth-error::before { content: '\f06a'; font-family: 'Font Awesome 6 Free'; font-weight: 900; margin-right: 8px; }
 
         .sidebar { width: 260px; background-color: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; transition: var(--transition); flex-shrink: 0; }
@@ -131,6 +131,7 @@
         .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; flex-shrink: 0; }
         .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; flex-shrink: 0; }
         .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; flex: 1; min-height: 0; flex-shrink: 1; }
+        .grid-traffic { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(300px, 1fr); gap: 16px; flex: 1; min-height: 0; flex-shrink: 1; }
         .grid-1-2 { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; flex-shrink: 0; }
 
         .metric-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.02); position: relative; overflow: hidden; }
@@ -194,13 +195,14 @@
         .settings-info p { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; }
 
         .mobile-toggle { display: none; background: none; border: none; color: var(--text-main); font-size: 1.2rem; cursor: pointer; padding: 4px; }
+        .topbar-logout { display: none; }
 
-        .sublab-layout { display: grid; grid-template-columns: 1fr 340px; gap: 20px; flex: 1; min-height: 0; flex-shrink: 1; }
+        .sublab-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 480px); gap: 20px; flex: 1; min-height: 0; flex-shrink: 1; }
         .sublab-editor { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; padding: 0 4px 16px 0; }
         .sublab-preview { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 
         .phone-mockup-wrapper { display: flex; justify-content: center; overflow: hidden; flex: 1; min-height: 0; padding: 10px; }
-        .phone-mockup { background: #0a0a0c; border: 2px solid rgba(255,255,255,0.08); border-radius: 40px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 24px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04); width: 100%; max-width: 300px; height: 100%; position: relative; overflow: hidden; }
+        .phone-mockup { background: #0a0a0c; border: 2px solid rgba(255,255,255,0.08); border-radius: 40px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 24px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04); width: 100%; max-width: 100%; height: 100%; position: relative; overflow: hidden; }
         .phone-notch { width: 130px; height: 26px; background: #0a0a0c; border-radius: 0 0 16px 16px; position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 10; }
         .phone-screen { flex: 1; width: 100%; background: #111113; border-radius: 38px; display: flex; flex-direction: column; padding-top: 36px; min-height: 0; overflow: hidden; border: 8px solid #0a0a0c; }
         .phone-config-list { flex: 1; overflow-y: auto; padding: 10px 12px 26px; display: flex; flex-direction: column; gap: 8px; }
@@ -256,11 +258,15 @@
             .content-area { height: auto; overflow: visible; }
             .tab-view { height: auto; overflow: visible; }
             .grid-4, .grid-3, .grid-6 { grid-template-columns: repeat(2, 1fr); }
+            .grid-traffic { grid-template-columns: 1fr; }
             .grid-1-2 { grid-template-columns: 1fr; }
             .sidebar { position: fixed; left: -260px; top: 0; bottom: 0; height: 100vh; box-shadow: 10px 0 30px rgba(0,0,0,0.6); }
             .sidebar.open { left: 0; }
-            .mobile-toggle { display: block; }
+            .topbar-logout { display: inline-flex; }
             .topbar { display: flex !important; }
+            .grid-3 { grid-auto-rows: auto; }
+            .grid-3 .panel-body, .grid-2 .panel-body { overflow: visible; }
+            .grid-3 .chart-wrapper { min-height: 240px; }
             .mini-stats { display: none !important; }
             .content-area { padding: 16px; }
             .bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background: var(--bg-panel); border-top: 1px solid var(--border); z-index: 200; }
@@ -270,7 +276,7 @@
             .skel-metric-grid { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 600px) {
-            .grid-4, .grid-3, .grid-6, .grid-2, .form-grid { grid-template-columns: 1fr; }
+            .grid-4, .grid-3, .grid-6, .grid-2, .form-grid, .grid-traffic { grid-template-columns: 1fr; }
             .header-section { flex-direction: column; align-items: flex-start; }
             .modal-tabs { overflow-x: auto; white-space: nowrap; }
             .content-area { padding: 12px; }
@@ -280,8 +286,8 @@
             .sublab-layout { grid-template-columns: 1fr; }
             .metric-val { font-size: 1.5rem; }
             .phone-mockup-wrapper { min-height: 500px; flex: none; }
-            .grid-1-2 { height: auto !important; grid-auto-rows: 280px; }
-            .chart-wrapper { height: 280px; flex: none; }
+            .grid-1-2 { height: auto !important; grid-auto-rows: 300px; }
+            .chart-wrapper { height: 240px; flex: none; }
             .terminal { min-height: 320px; }
             .topbar { padding: 0 12px; }
             .traffic-totals { gap: 8px; }
@@ -364,6 +370,7 @@
                 <div class="mini-stat-item" style="color:var(--purple)"><i class="fa-solid fa-gauge-high"></i> <span id="m-speed-mini">0 / 0</span> Mbps</div>
             </div>
             <div style="display:flex; align-items:center; gap:14px;">
+                <button class="mobile-toggle topbar-logout" data-action="doLogout" title="Logout" style="background:none; border:none; color:var(--text-muted); font-size:1.05rem; cursor:pointer; padding:4px;"><i class="fa-solid fa-right-from-bracket"></i></button>
                 <div style="display:flex; align-items:center; gap:8px; font-size:0.78rem; font-weight:700; font-family:'JetBrains Mono',monospace;">
                     <span id="gw-dot" style="width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block; flex-shrink:0;"></span>
                     <span id="gw-label" style="color:var(--accent);">GATEWAY RUNNING</span>
@@ -371,41 +378,19 @@
             </div>
         </header>
 
-        <button class="mobile-toggle" style="position:fixed; top:14px; left:16px; z-index:40;" id="mobile-dash-btn" data-action="toggleSidebar"><i class="fa-solid fa-bars"></i></button>
-
         <div class="content-area">
 
             <div id="tab-dashboard" class="tab-view active">
-                <div class="header-section"><div><h2>System Dashboard</h2><p>Gateway status and control. Full telemetry lives in the Analytics tab.</p></div></div>
+                <div class="header-section"><div><h2>System Dashboard</h2><p>Live traffic, gateway status and control. Deep telemetry lives in the Analytics tab.</p></div></div>
 
-                <div class="panel" style="max-width: 640px;">
-                    <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-power-off text-info"></i> Gateway Control</div></div>
-                    <div class="panel-body" style="gap: 14px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Gateway Status</span><span class="tag tag-red" id="dash-status-tag">Offline</span></div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Active Connections</span><span class="mono" id="dash-conns">0</span></div>
-                        <p style="color:var(--text-muted); font-size:0.8rem; line-height:1.5; margin:0;">Stopping or restarting the gateway immediately severs all active client connections. It is an application-managed service — no external process is launched.</p>
-                        <div style="display:flex; gap:12px;">
-                            <button class="btn" style="flex:1; background:var(--accent-bg); color:var(--accent); border:none;" data-action="gatewayAction" data-action-arg="start"><i class="fa-solid fa-play"></i> Start</button>
-                            <button class="btn" style="flex:1; background:var(--danger-bg); color:var(--danger); border:none;" data-action="gatewayAction" data-action-arg="stop"><i class="fa-solid fa-stop"></i> Stop</button>
-                            <button class="btn btn-primary" style="flex:1;" data-action="gatewayAction" data-action-arg="restart"><i class="fa-solid fa-rotate-right"></i> Restart</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="tab-analytics" class="tab-view">
-                <div class="header-section"><div><h2>Analytics</h2><p>Real-time traffic, system health, uptime and live connections — streamed over WebSocket.</p></div></div>
-
-                <div class="grid-6">
+                <div class="grid-4">
                     <div class="metric-card"><div class="metric-title">Download <i class="fa-solid fa-arrow-down-long" style="color:var(--accent)"></i></div><div class="metric-val mono" id="m-rx">0.00 <span class="metric-sub">GB</span></div></div>
                     <div class="metric-card"><div class="metric-title">Upload <i class="fa-solid fa-arrow-up-long" style="color:var(--info)"></i></div><div class="metric-val mono" id="m-tx">0.00 <span class="metric-sub">GB</span></div></div>
-                    <div class="metric-card"><div class="metric-title">Speed (DL/UL) <i class="fa-solid fa-gauge-high" style="color:var(--purple)"></i></div><div class="metric-val mono" id="m-speed">0 <span class="metric-sub">/ 0 Mbps</span></div></div>
-                    <div class="metric-card"><div class="metric-title">Active Connections <i class="fa-solid fa-plug" style="color:var(--info)"></i></div><div class="metric-val mono" id="a-conns">0</div></div>
-                    <div class="metric-card"><div class="metric-title">Gateway Uptime <i class="fa-solid fa-clock" style="color:var(--warning)"></i></div><div class="metric-val mono" id="m-uptime">0h 00m</div></div>
-                    <div class="metric-card"><div class="metric-title">30-Day Uptime <i class="fa-solid fa-shield-heart" style="color:var(--success)"></i></div><div class="metric-val mono" id="a-uptime30">0.0%</div></div>
+                    <div class="metric-card"><div class="metric-title">Speed (DL/UL) <i class="fa-solid fa-gauge-high" style="color:var(--purple)"></i></div><div class="metric-val mono" id="m-speed">0.0 <span class="metric-sub">/ 0.0 Mbps</span></div></div>
+                    <div class="metric-card"><div class="metric-title">Peak Speed <i class="fa-solid fa-bolt" style="color:var(--warning)"></i></div><div class="metric-val mono" id="d-peak">0.0 <span class="metric-sub">Mbps</span></div></div>
                 </div>
 
-                <div class="grid-3">
+                <div class="grid-traffic">
                     <div class="panel" style="min-height:0;">
                         <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-wave-square text-accent"></i> Global Traffic Flow</div>
                             <div class="traffic-totals"><span><i class="fa-solid fa-arrow-down-long" style="color:var(--accent);"></i> <b id="t-rx">0.00</b> GB</span><span><i class="fa-solid fa-arrow-up-long" style="color:var(--info);"></i> <b id="t-tx">0.00</b> GB</span></div>
@@ -414,6 +399,35 @@
                             <div class="chart-wrapper" style="padding: 0;"><canvas id="chart-traffic"></canvas></div>
                         </div>
                     </div>
+                    <div class="panel" style="min-height:0;">
+                        <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-power-off text-info"></i> Gateway Control</div></div>
+                        <div class="panel-body" style="gap: 14px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Gateway Status</span><span class="tag tag-red" id="dash-status-tag">Offline</span></div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Active Connections</span><span class="mono" id="dash-conns">0</span></div>
+                            <p style="color:var(--text-muted); font-size:0.8rem; line-height:1.5; margin:0;">Stopping or restarting the gateway immediately severs all active client connections. It is an application-managed service — no external process is launched.</p>
+                            <div style="display:flex; gap:12px;">
+                                <button class="btn" style="flex:1; background:var(--accent-bg); color:var(--accent); border:none;" data-action="gatewayAction" data-action-arg="start"><i class="fa-solid fa-play"></i> Start</button>
+                                <button class="btn" style="flex:1; background:var(--danger-bg); color:var(--danger); border:none;" data-action="gatewayAction" data-action-arg="stop"><i class="fa-solid fa-stop"></i> Stop</button>
+                                <button class="btn btn-primary" style="flex:1;" data-action="gatewayAction" data-action-arg="restart"><i class="fa-solid fa-rotate-right"></i> Restart</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-analytics" class="tab-view">
+                <div class="header-section"><div><h2>Analytics</h2><p>System health, uptime, connections and destinations — streamed over WebSocket.</p></div></div>
+
+                <div class="grid-6">
+                    <div class="metric-card"><div class="metric-title">Active Connections <i class="fa-solid fa-plug" style="color:var(--info)"></i></div><div class="metric-val mono" id="a-conns">0</div></div>
+                    <div class="metric-card"><div class="metric-title">Gateway Uptime <i class="fa-solid fa-clock" style="color:var(--warning)"></i></div><div class="metric-val mono" id="m-uptime">0h 00m</div></div>
+                    <div class="metric-card"><div class="metric-title">30-Day Uptime <i class="fa-solid fa-shield-heart" style="color:var(--success)"></i></div><div class="metric-val mono" id="a-uptime30">0.0%</div></div>
+                    <div class="metric-card"><div class="metric-title">Peak Concurrent (24h) <i class="fa-solid fa-arrow-trend-up" style="color:var(--accent)"></i></div><div class="metric-val mono" id="a-peak">0</div></div>
+                    <div class="metric-card"><div class="metric-title">Total Clients <i class="fa-solid fa-users" style="color:var(--text-muted)"></i></div><div class="metric-val mono" id="a-total-clients">0</div></div>
+                    <div class="metric-card"><div class="metric-title">Active Clients <i class="fa-solid fa-user-check" style="color:var(--success)"></i></div><div class="metric-val mono" id="a-active-clients">0</div></div>
+                </div>
+
+                <div class="grid-3">
                     <div class="panel" style="min-height:0;">
                         <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-heart-pulse text-accent"></i> System Health</div></div>
                         <div class="panel-body" style="gap: 14px;">
@@ -434,6 +448,12 @@
                                 <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">30-Day Uptime</span><span class="mono" id="dash-uptime">0%</span></div>
                                 <div class="uptime-bar"><div class="uptime-fill" id="uptime-fill" style="width:0%"></div></div>
                             </div>
+                        </div>
+                    </div>
+                    <div class="panel" style="min-height:0;">
+                        <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-signal text-info"></i> Concurrent Connections <span class="tag tag-green" style="margin-left:8px;">24h</span></div></div>
+                        <div class="panel-body-unpadded" style="padding: 12px;">
+                            <div class="chart-wrapper" style="padding: 0;"><canvas id="chart-conns"></canvas></div>
                         </div>
                     </div>
                     <div class="panel" style="min-height:0;">
@@ -719,19 +739,16 @@
             if (target) target.classList.add('active');
 
             const topbar = document.getElementById('main-topbar');
-            const mobileBtn = document.getElementById('mobile-dash-btn');
-            if (tabId === 'dashboard') {
+            if (tabId === 'dashboard' && window.innerWidth > 1024) {
                 topbar.classList.add('hidden');
-                mobileBtn.style.display = window.innerWidth <= 1024 ? 'block' : 'none';
             } else {
                 topbar.classList.remove('hidden');
-                mobileBtn.style.display = 'none';
             }
             if (window.innerWidth <= 1024) document.getElementById('sidebar').classList.remove('open');
             if (tabId === 'logs') filterLogs();
             if (tabId === 'dashboard' || tabId === 'analytics' || tabId === 'clients') ensureCharts();
             setTimeout(function() {
-                try { [trafficChart, clientPieChart, clientFlowChart].forEach(c => c && c.resize()); } catch (e) {}
+                try { [trafficChart, clientPieChart, clientFlowChart, connsChart].forEach(c => c && c.resize()); } catch (e) {}
             }, 80);
         }
 
@@ -754,6 +771,10 @@
             if (clientPieChart) updatePieChart();
             if (clientFlowChart) {
                 clientFlowChart.data.datasets[0].borderColor = theme.accent;
+            }
+            if (connsChart) {
+                connsChart.data.datasets[0].borderColor = theme.accent;
+                connsChart.data.datasets[0].backgroundColor = theme.accentBackground.replace(')', ', 0.15)').replace('rgb', 'rgba');
             }
         }
 
@@ -851,9 +872,10 @@
             if (state.settings) appState.settings = state.settings;
             renderClients();
             populateSubClientSelect();
+            updateClientCountMetrics();
         }
 
-        let trafficChart = null, clientPieChart = null, clientFlowChart = null, chartsInited = false;
+        let trafficChart = null, clientPieChart = null, clientFlowChart = null, connsChart = null, chartsInited = false;
         let chartJsPromise = null;
         function loadChartJs() {
             if (window.Chart) return Promise.resolve();
@@ -911,9 +933,9 @@
             if (trafficCanvas && !trafficChart) {
                 trafficChart = new Chart(trafficCanvas.getContext('2d'), {
                     type: 'line',
-                    data: { labels: Array(60).fill(''), datasets: [
-                        { label: 'Download', data: Array(60).fill(0), borderColor: accent, backgroundColor: accent + '26', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.35 },
-                        { label: 'Upload', data: Array(60).fill(0), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.12)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.35 }
+                    data: { labels: Array(90).fill(''), datasets: [
+                        { label: 'Download', data: Array(90).fill(0), borderColor: accent, backgroundColor: accent + '26', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.35 },
+                        { label: 'Upload', data: Array(90).fill(0), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.12)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.35 }
                     ]},
                     options: {
                         responsive: true, maintainAspectRatio: false, animation: false,
@@ -953,6 +975,27 @@
                         interaction: { intersect: false, mode: 'index' },
                         plugins: { legend: { display: false }, tooltip: Object.assign({}, tooltipStyle, ttCb) },
                         scales: { x: { display: false }, y: { beginAtZero: true, display: false, grid: { color: gridColor } } }
+                    }
+                });
+            }
+            const connsCanvas = document.getElementById('chart-conns');
+            if (connsCanvas && !connsChart) {
+                connsChart = new Chart(connsCanvas.getContext('2d'), {
+                    type: 'line',
+                    data: { labels: [], datasets: [
+                        { label: 'Concurrent', data: [], borderColor: accent, backgroundColor: accent + '26', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3 }
+                    ]},
+                    options: {
+                        responsive: true, maintainAspectRatio: false, animation: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: Object.assign({}, tooltipStyle, { callbacks: { label: (c) => ` ${c.dataset.label}: ${Math.round(c.parsed.y)} conn${Math.round(c.parsed.y) === 1 ? '' : 's'}` } })
+                        },
+                        scales: {
+                            x: { grid: { display: false }, border: { display: false }, ticks: { color: tickColor, font: { size: 9 }, maxTicksLimit: 6, maxRotation: 0, autoSkip: true } },
+                            y: { beginAtZero: true, grid: { color: gridColor }, border: { display: false }, ticks: { color: tickColor, font: { size: 10 }, maxTicksLimit: 4, precision: 0 } }
+                        }
                     }
                 });
             }
@@ -999,6 +1042,9 @@
             if (el('dash-uptime')) el('dash-uptime').innerText = `${Number(t.uptime30d || 0).toFixed(1)}%`;
             if (el('a-conns')) el('a-conns').innerText = String(t.connections || 0);
             if (el('a-uptime30')) el('a-uptime30').innerText = `${Number(t.uptime30d || 0).toFixed(1)}%`;
+            if (el('a-peak')) el('a-peak').innerText = String(t.peakConns24h || 0);
+            updateClientCountMetrics();
+            updateConnsChart(t);
             const uf = document.getElementById('uptime-fill');
             if (uf) uf.style.width = `${Math.min(100, Number(t.uptime30d || 0))}%`;
             if (el('cpu-bar-fill')) el('cpu-bar-fill').style.width = `${Math.min(100, Number(t.cpuPercent || 0))}%`;
@@ -1017,11 +1063,14 @@
             if (trafficChart) {
                 trafficChart.data.datasets[0].data.push(t.speedDownMbps || 0);
                 trafficChart.data.datasets[1].data.push(t.speedUpMbps || 0);
-                if (trafficChart.data.datasets[0].data.length > 60) {
+                if (trafficChart.data.datasets[0].data.length > 90) {
                     trafficChart.data.datasets[0].data.shift();
                     trafficChart.data.datasets[1].data.shift();
                 }
                 trafficChart.update('none');
+                const peak = Math.max.apply(null, trafficChart.data.datasets[0].data.concat(trafficChart.data.datasets[1].data));
+                const peakEl = el('d-peak');
+                if (peakEl) peakEl.innerHTML = `${Number(peak || 0).toFixed(1)} <span class="metric-sub">Mbps</span>`;
             }
             if (clientPieChart) updatePieChart();
             if (clientFlowChart) {
@@ -1033,6 +1082,26 @@
                 }
                 clientFlowChart.update('none');
             }
+        }
+
+        function updateConnsChart(t) {
+            if (!connsChart) return;
+            const counts = Array.isArray(t.connsHistory) ? t.connsHistory : [];
+            const start = Number(t.connsHistoryStart || 0);
+            const labels = [];
+            for (let i = 0; i < counts.length; i++) {
+                const d = new Date((start + i * 60) * 1000);
+                labels.push(String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'));
+            }
+            connsChart.data.labels = labels;
+            connsChart.data.datasets[0].data = counts;
+            connsChart.update('none');
+        }
+
+        function updateClientCountMetrics() {
+            const elc = (id) => document.getElementById(id);
+            if (elc('a-total-clients')) elc('a-total-clients').innerText = String(appState.clients.length || 0);
+            if (elc('a-active-clients')) elc('a-active-clients').innerText = String(appState.clients.filter(c => c.status).length || 0);
         }
 
         function updatePieChart() {
@@ -1258,16 +1327,18 @@
                 const pct = lim > 0 ? Math.min(100, (used / lim) * 100) : 0;
                 const barColor = pct > 90 ? 'background:var(--danger);' : (pct > 75 ? 'background:var(--warning);' : '');
                 return `
-                    <div class="conn-row" style="cursor:default;">
-                        <div class="conn-flag"><i class="fa-solid fa-user" style="color:var(--accent);"></i></div>
+                    <div class="conn-row" style="cursor:default; align-items:flex-start;">
+                        <div class="conn-flag" style="padding-top:3px;"><i class="fa-solid fa-user" style="color:var(--accent);"></i></div>
                         <div class="conn-main">
-                            <div class="conn-title">${esc(c.name)}</div>
-                            <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+                            <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                                <div class="conn-title" style="flex:1; min-width:0;">${esc(c.name)}</div>
+                                <span class="speed-badge" style="margin-top:0; flex-shrink:0;"><span class="dl">↓ ${fmtSpeed(sp.down_bps)}</span><span class="ul"> ↑ ${fmtSpeed(sp.up_bps)}</span></span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
                                 <div class="uptime-bar" style="flex:1; margin-top:0;"><div class="uptime-fill" style="width:${pct}%; ${barColor}"></div></div>
                                 <span class="mono" style="font-size:0.65rem; color:var(--text-muted); white-space:nowrap;">${used.toFixed(2)} / ${lim === 0 ? '∞' : lim + ' GB'}</span>
                             </div>
                         </div>
-                        <div class="conn-stats"><span class="speed-badge" style="margin-top:0;"><span class="dl">↓ ${fmtSpeed(sp.down_bps)}</span><span class="ul"> ↑ ${fmtSpeed(sp.up_bps)}</span></span></div>
                     </div>`;
             }).join('');
             box.innerHTML = rows || '<div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:22px 0;">No clients yet</div>';
@@ -1723,6 +1794,8 @@
             } else {
                 document.getElementById('auth-overlay').style.display = 'none';
             }
+
+            if (window.innerWidth <= 1024) document.getElementById('main-topbar').classList.remove('hidden');
 
             setTimeout(function() {
                 try { ensureCharts(); } catch (e) {  }

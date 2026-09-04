@@ -973,6 +973,10 @@ console_logs: collections.deque = collections.deque(maxlen=MAX_LOG_ENTRIES)
 proxy_connections: dict[str, dict] = {}
 
 
+CONNS_HISTORY_WINDOW_MINUTES = 24 * 60
+_conns_minute_log: dict = {}
+
+
 class GatewayStatus(str, Enum):
     RUNNING = "running"
     STOPPED = "stopped"
@@ -1201,6 +1205,17 @@ async def telemetry_snapshot() -> dict:
             _P_CLIENT_USED.labels(c.id, c.name).set(c.used_bytes)
             _P_CLIENT_LIMIT.labels(c.id, c.name).set(c.limit_bytes)
 
+    
+    _conns_minute_log[int(now // 60)] = len(proxy_connections)
+    while len(_conns_minute_log) > CONNS_HISTORY_WINDOW_MINUTES:
+        _conns_minute_log.pop(min(_conns_minute_log), None)
+    conns_buckets = sorted(_conns_minute_log)
+    conns_start = conns_buckets[0] * 60 if conns_buckets else int(now)
+    conns_counts = [
+        _conns_minute_log.get(b, 0)
+        for b in range(conns_buckets[0], conns_buckets[-1] + 1)
+    ] if conns_buckets else []
+
     return {
         "connections": len(proxy_connections),
         "connectionDetails": conn_details,
@@ -1218,6 +1233,9 @@ async def telemetry_snapshot() -> dict:
         "uptime30d": uptime_30d_pct(),
         "gateway": gateway["status"],
         "gatewayUptimeSec": gateway_uptime_sec(),
+        "connsHistoryStart": conns_start,
+        "connsHistory": conns_counts,
+        "peakConns24h": max(conns_counts) if conns_counts else 0,
     }
 
 
