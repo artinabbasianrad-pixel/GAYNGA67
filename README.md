@@ -168,6 +168,8 @@ graph LR
 V2Leafy/
 ├── index.html       # Adaptive web dashboard (backend-driven theme/platform)
 ├── main.py          # FastAPI backend, auth, API, proxy, and subscriptions
+├── static/vendor/   # Self-hosted FontAwesome, Chart.js, QRCode.js, fonts (+ SRI)
+├── gunicorn_config.py # Multi-worker template (single worker recommended — see notes)
 ├── requirements.txt # Python dependencies
 ├── Procfile         # Compatible process command (web: python main.py)
 ├── railway.json     # Railway configuration (build, secrets, healthcheck)
@@ -184,10 +186,51 @@ V2Leafy/
 ## Security Notes
 
 - **Password hashing**: PBKDF2-HMAC-SHA256 with a per-setup salt; only the hash is stored.
-- **Sessions**: HTTP-only, SameSite cookies held in memory; never persisted.
-- **Validation**: Request payloads are validated with Pydantic v2 (lengths, bounds, enums, body-size cap).
-- **WebSockets**: Dashboard sockets require the authenticated session cookie and validate the `Origin` header.
-- **No IP logging**: Client IP addresses are never persisted, logged, or returned by the API.
+- **Sessions**: HTTP-only, SameSite=Lax cookies held in memory; never persisted. Tokens rotate every 30 minutes to prevent fixation.
+- **Rate limiting**: `/api/login` and `/api/setup` allow 5 attempts/minute/IP (sliding window; `LOGIN_RATE_LIMIT`).
+- **CSRF**: all state-changing API calls require the `X-CSRF-Token` header (derived from the session and embedded in the page bootstrap). Login/setup additionally require a same-origin `Origin`/`Referer`.
+- **Headers**: CSP (`default-src 'self'`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, strict `Referrer-Policy`, HSTS over HTTPS, and the `Server` header is neutralized.
+- **Validation**: Pydantic v2 everywhere (lengths, bounds, enums, body-size cap), `{uid}`/`{client_id}` path params must match a UUID, and the VLESS header parser enforces RFC 1123 FQDN rules with hard caps.
+- **Tunnel auth**: every VLESS client link carries a per-client WS query token (`?token=…`) as a second factor; unparseable headers, wrong tokens, and unknown UUIDs are answered with an nginx-style fallback page instead of error codes.
+- **Assets**: FontAwesome, Chart.js, QRCode.js and the two UI fonts are bundled under `static/vendor/` with SRI hashes and immutable caching — no runtime CDN dependency.
+- **IP visibility**: the dashboard's live connection inspector shows peer IPs (and optional geo flags). `GEO_LOOKUP=0` disables geo lookup. Peer IPs are kept in memory only and never persisted to state.
+
+---
+
+## Operational Notes (hardening backlog)
+
+### Platform constraints
+
+- **UDP forwarding (VLESS command 2)**: implemented, but **disabled by default** (`UDP_FORWARDING=1` enables it). Railway's edge does not support outbound UDP, so command-2 connections will fail to dial there (clean close, no crash). Codespaces and local hosts generally allow it. Mainstream xray-based clients cannot carry UDP over WebSocket reliably, so treat this as experimental.
+- **Multi-worker**: see `gunicorn_config.py`. Sessions, in-memory state and the connection table are per-process, so **keep `workers = 1`** on Railway (memory persistence) and on file-backed hosts unless you move sessions/state to a shared store.
+- **Handshake padding (`HANDSHAKE_PADDING_MAX`)**: the legacy xray `?ed=` WebSocket padding protocol was removed from all modern clients (xray/v2ray/sing-box), so this knob is only meaningful for legacy clients that request `ed`; default `0` (off).
+
+### Environment variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SECRET_KEY` | dev fallback | Session/CSRF signing key (always set in production) |
+| `LOG_FORMAT` | `text` | `json` emits structured `{timestamp, level, msg, client_id}` lines for Datadog/Loki/ELK |
+| `LOGIN_RATE_LIMIT` | `5` | Login/setup attempts per minute per IP |
+| `TCP_CONNECT_TIMEOUT` / `TCP_FIRST_BYTE_TIMEOUT` / `TCP_IDLE_TIMEOUT` | `5` / `10` / `300` | Split connection timeouts (s) |
+| `RELAY_QUEUE_MAX` | `8` | Bounded WS send queue (frames) — caps memory on slow readers |
+| `UDP_FORWARDING` | `0` | Enable experimental VLESS UDP forwarding |
+| `HANDSHAKE_PADDING_MAX` | `0` | Legacy `ed`-padding support (see constraints) |
+| `QUOTA_RESET_CYCLE` | `none` | `monthly` or `weekly` billing cycles for auto quota resets |
+| `QUOTA_RESET_MONTHLY_DAY` / `QUOTA_RESET_HOUR_UTC` | `1` / `0` | Monthly reset day-of-month and hour (UTC) |
+| `MEMORY_WATCHDOG_PCT` / `MEMORY_WATCHDOG_MB` | `80` / `0` | Restart process when RSS exceeds container limit % or absolute MB |
+| `ALERT_WEBHOOK_URL` / `ALERT_WEBHOOK_TYPE` | – / `discord` | Alert webhook (`discord` or `telegram` + `TELEGRAM_CHAT_ID`) for mem > 90% / CPU 5-min avg > 85% |
+| `GEO_LOOKUP` | `1` | Resolve peer IPs to country flags via ip-api.com (cached, best-effort) |
+| `PROMETHEUS` | `1` | Expose `/metrics` (traffic, connections, per-client gauges, system) |
+
+### Endpoints added
+
+- `GET /health/ready` — state read/write, listener, disk %, gateway status.
+- `GET /metrics` — Prometheus text format.
+- `POST /api/links/{uid}/token` — rotate a client's WS tunnel token (revoke old links).
+- `POST /api/links/{uid}/sub-slug` — regenerate a client's subscription slug without touching the UUID.
+- `POST /api/connections/{conn_id}/kill` — terminate a live tunnel connection.
+- `GET /sub/token_xxx` — subscriptions served via revocable slugs; `Subscription-Userinfo` carries exact `upload`/`download`/`total`/`expire` byte values; output is RFC 4648 base64 with CRLF separators and ETag/304 support.
 
 ---
 
