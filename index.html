@@ -48,7 +48,7 @@
         #loader { position: fixed; inset: 0; background: var(--bg-base); z-index: 99999; display: flex; overflow: hidden; transition: opacity 0.4s ease, visibility 0.4s; }
         #loader-sidebar { width: 260px; background-color: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
         #loader-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-        #loader-topbar { height: 60px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; background-color: var(--bg-base); }
+        #loader-topbar { display: none; } /* dashboard tab on desktop has no top bar */
         #loader-inner { width: 100%; flex: 1; min-height: 0; overflow: hidden; padding: 24px; display: flex; flex-direction: column; gap: 16px; position: relative; }
         .skel-sidebar-logo { height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 24px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
         .skel-sidebar-nav { flex: 1; overflow: hidden; padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; }
@@ -57,13 +57,17 @@
         .skel { background: linear-gradient(90deg, var(--bg-hover) 25%, var(--bg-active) 50%, var(--bg-hover) 75%); background-size: 200% 100%; animation: shimmer 1.4s ease infinite; border-radius: 10px; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         .skel-metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-        .skel-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; }
+        .skel-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.02); }
+        .skel-card .skel-t { height: 15px; border-radius: 6px; }
+        .skel-card .skel-v { height: 34px; border-radius: 8px; }
+        .skel-sub2 { display: none; }
         .skel-row { height: 14px; margin-bottom: 10px; }
         .skel-row.w60 { width: 60%; } .skel-row.w40 { width: 40%; } .skel-row.w80 { width: 80%; }
         .skel-line { height: 10px; margin: 8px 0; opacity: 0.7; }
-        .skel-traffic-grid { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(300px, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; flex: 1; min-height: 0; flex-shrink: 1; }
+        .skel-traffic-grid { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(330px, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; flex: 1; min-height: 0; flex-shrink: 1; }
         .skel-chart { flex: 1; min-height: 0; border-radius: 12px; }
-        .skel-burger { display: none; }
+        #skel-bn { display: none; }
+        .skel-bn-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; }
         .skel-panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.02); }
         .skel-panel-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; min-height: 56px; }
         .skel-panel-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; flex: 1; min-height: 0; }
@@ -274,11 +278,11 @@
             .grid-4, .grid-3, .grid-6 { grid-template-columns: repeat(2, 1fr); }
             .grid-traffic { grid-template-columns: 1fr; }
             .skel-traffic-grid { grid-template-columns: 1fr; grid-template-rows: none; flex: none; }
-            .skel-chart { min-height: 220px; }
-            .skel-burger { display: block; }
-            .skel-mini-stats { display: none; }
-            .skel-top-r { display: none; }
-            #loader-inner { overflow-y: auto; }
+            .skel-chart { min-height: 150px; }
+            #loader { flex-direction: column; }
+            #loader-topbar { display: flex; height: 60px; border-bottom: 1px solid var(--border); align-items: center; gap: 14px; padding: 0 24px; flex-shrink: 0; background-color: var(--bg-base); }
+            #loader-inner { overflow-y: auto; padding-bottom: 8px; }
+            #skel-bn { display: flex; }
             .grid-1-2 { grid-template-columns: 1fr; }
             .sidebar { position: fixed; left: -260px; top: 0; bottom: 0; height: 100vh; box-shadow: 10px 0 30px rgba(0,0,0,0.6); }
             .sidebar.open { left: 0; }
@@ -299,6 +303,9 @@
         @media (max-width: 600px) {
             .grid-4, .grid-3, .grid-6, .grid-2, .form-grid, .grid-traffic { grid-template-columns: 1fr; }
             .skel-metric-grid { grid-template-columns: 1fr; }
+            .skel-chart { min-height: 240px; }
+            .skel-card .skel-v { height: 31px; }
+            .skel-panel-body { padding: 16px; }
             .header-section { flex-direction: column; align-items: flex-start; }
             .modal-tabs { overflow-x: auto; white-space: nowrap; }
             .content-area { padding: 12px; }
@@ -318,6 +325,9 @@
             .modal-overlay { padding: 12px; align-items: flex-start; overflow-y: auto; }
             .modal { max-height: none; }
         }
+        @media (max-width: 524px) {
+            .skel-sub2 { display: block; }
+        }
     </style>
 </head>
 <body>
@@ -325,15 +335,17 @@
         <aside id="loader-sidebar">
             <div class="skel-sidebar-logo">
                 <div class="skel" style="width:26px; height:26px; border-radius:8px;"></div>
-                <div class="skel skel-row" style="width:110px; margin:0;"></div>
+                <div class="skel" style="width:110px; height:18px; border-radius:6px;"></div>
             </div>
             <div class="skel-sidebar-nav">
                 <div class="skel" style="width:80px; height:10px; margin:16px 0 8px 12px;"></div>
-                <div class="skel-nav-item"><div class="skel" style="width:20px; height:17px; border-radius:5px; flex-shrink:0;"></div><div class="skel skel-row" style="flex:1; margin:0; max-width:110px;"></div></div>
-                <div class="skel-nav-item"><div class="skel" style="width:20px; height:17px; border-radius:5px; flex-shrink:0;"></div><div class="skel skel-row" style="flex:1; margin:0; max-width:110px;"></div></div>
+                <div class="skel-nav-item"><div class="skel" style="width:20px; height:17px; border-radius:5px; flex-shrink:0;"></div><div class="skel" style="flex:1; height:20px; max-width:110px; border-radius:6px;"></div></div>
+                <div class="skel-nav-item"><div class="skel" style="width:20px; height:17px; border-radius:5px; flex-shrink:0;"></div><div class="skel" style="flex:1; height:20px; max-width:110px; border-radius:6px;"></div></div>
                 <div class="skel" style="width:80px; height:10px; margin:16px 0 8px 12px;"></div>
-                <div class="skel-nav-item"><div class="skel" style="width:20px; height:17px; border-radius:5px; flex-shrink:0;"></div><div class="skel skel-row" style="flex:1; margin:0; max-width:110px;"></div></div>
-                <div class="skel-nav-item"><div class="skel" style="width:20px; height:17px; border-radius:5px; flex-shrink:0;"></div><div class="skel skel-row" style="flex:1; margin:0; max-width:110px;"></div></div>
+                <div class="skel-nav-item"><div class="skel" style="width:20px; height:17px; border-radius:5px; flex-shrink:0;"></div><div class="skel" style="flex:1; height:20px; max-width:110px; border-radius:6px;"></div></div>
+                <div class="skel-nav-item"><div class="skel" style="width:20px; height:17px; border-radius:5px; flex-shrink:0;"></div><div class="skel" style="flex:1; height:20px; max-width:110px; border-radius:6px;"></div></div>
+                <div class="skel" style="width:80px; height:10px; margin:16px 0 8px 12px;"></div>
+                <div class="skel-nav-item"><div class="skel" style="width:20px; height:17px; border-radius:5px; flex-shrink:0;"></div><div class="skel" style="flex:1; height:20px; max-width:110px; border-radius:6px;"></div></div>
             </div>
             <div class="skel-sidebar-footer">
                 <div class="skel skel-btn" style="width:100%;"></div>
@@ -342,31 +354,28 @@
         </aside>
         <div id="loader-main">
             <div id="loader-topbar">
-                <div class="skel skel-mini-stats" style="width:170px; height:16px; border-radius:6px;"></div>
-                <div class="skel skel-burger" style="width:26px; height:26px; border-radius:8px;"></div>
-                <div style="display:flex; align-items:center; gap:14px;">
-                    <div class="skel skel-top-r" style="width:90px; height:12px; border-radius:6px;"></div>
-                    <span style="display:inline-flex; align-items:center; gap:6px; font-size:0.72rem; font-weight:700; font-family:'JetBrains Mono',monospace; letter-spacing:0.04em; color:var(--accent);"><span style="width:8px; height:8px; border-radius:50%; background:var(--accent); opacity:0.75;"></span>CONNECTING…</span>
-                </div>
+                <div class="skel" style="width:25px; height:25px; border-radius:6px; flex-shrink:0;"></div>
+                <div class="skel" style="width:128px; height:17px; border-radius:6px;"></div>
             </div>
             <div id="loader-inner">
             <div style="margin-bottom:4px;">
-                <div class="skel" style="height:20px; width:38%; border-radius:6px; margin-bottom:12px;"></div>
-                <div class="skel" style="height:10px; width:60%; opacity:0.7; border-radius:6px;"></div>
+                <div class="skel" style="height:25px; width:38%; border-radius:6px; margin-bottom:4px;"></div>
+                <div class="skel" style="height:17px; width:60%; opacity:0.7; border-radius:6px;"></div>
+                <div class="skel skel-sub2" style="height:17px; width:70%; opacity:0.7; border-radius:6px;"></div>
             </div>
             <div class="skel-metric-grid">
-                <div class="skel-card"><div class="skel" style="height:13px; width:55%; border-radius:6px; margin-bottom:9px;"></div><div class="skel" style="height:24px; width:85%; border-radius:8px;"></div></div>
-                <div class="skel-card"><div class="skel" style="height:13px; width:55%; border-radius:6px; margin-bottom:9px;"></div><div class="skel" style="height:24px; width:85%; border-radius:8px;"></div></div>
-                <div class="skel-card"><div class="skel" style="height:13px; width:55%; border-radius:6px; margin-bottom:9px;"></div><div class="skel" style="height:24px; width:85%; border-radius:8px;"></div></div>
-                <div class="skel-card"><div class="skel" style="height:13px; width:55%; border-radius:6px; margin-bottom:9px;"></div><div class="skel" style="height:24px; width:85%; border-radius:8px;"></div></div>
+                <div class="skel-card"><div class="skel skel-t" style="width:55%;"></div><div class="skel skel-v" style="width:85%;"></div></div>
+                <div class="skel-card"><div class="skel skel-t" style="width:55%;"></div><div class="skel skel-v" style="width:85%;"></div></div>
+                <div class="skel-card"><div class="skel skel-t" style="width:55%;"></div><div class="skel skel-v" style="width:85%;"></div></div>
+                <div class="skel-card"><div class="skel skel-t" style="width:55%;"></div><div class="skel skel-v" style="width:85%;"></div></div>
             </div>
             <div class="skel-traffic-grid">
                 <div class="skel-panel">
                     <div class="skel-panel-head">
                         <div class="skel" style="width:18px; height:18px; border-radius:6px;"></div>
-                        <div class="skel skel-row" style="width:150px; margin:0;"></div>
+                        <div class="skel" style="width:150px; height:20px; border-radius:6px;"></div>
                         <div style="flex:1;"></div>
-                        <div class="skel skel-line" style="width:130px; margin:0;"></div>
+                        <div class="skel" style="width:150px; height:16px; border-radius:6px; opacity:0.7;"></div>
                     </div>
                     <div class="skel-panel-body" style="padding:12px;">
                         <div class="skel skel-chart"></div>
@@ -376,18 +385,18 @@
                     <div class="skel-panel" style="flex-shrink:0;">
                         <div class="skel-panel-head">
                             <div class="skel" style="width:18px; height:18px; border-radius:6px;"></div>
-                            <div class="skel skel-row" style="width:140px; margin:0;"></div>
+                            <div class="skel" style="width:140px; height:20px; border-radius:6px;"></div>
                         </div>
-                        <div class="skel-panel-body" style="flex:none; gap: 12px;">
-                            <div style="display:flex; align-items:center; gap:12px;">
-                                <div class="skel skel-line w60" style="margin:0; flex:1;"></div>
-                                <div class="skel" style="width:64px; height:24px; border-radius:999px; flex-shrink:0;"></div>
+                        <div class="skel-panel-body" style="flex:none; gap:12px; padding:16px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:11px;">
+                                <div class="skel" style="width:110px; height:19px; border-radius:6px;"></div>
+                                <div class="skel" style="width:64px; height:22px; border-radius:999px; flex-shrink:0;"></div>
                             </div>
-                            <div style="display:flex; align-items:center; gap:12px;">
-                                <div class="skel skel-line w40" style="margin:0; flex:1;"></div>
-                                <div class="skel skel-row" style="width:40px; margin:0;"></div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:11px;">
+                                <div class="skel" style="width:150px; height:19px; border-radius:6px;"></div>
+                                <div class="skel" style="width:28px; height:19px; border-radius:6px;"></div>
                             </div>
-                            <div style="display:flex; gap:12px; margin-top:4px;">
+                            <div style="display:flex; gap:12px;">
                                 <div class="skel skel-btn" style="flex:1;"></div>
                                 <div class="skel skel-btn" style="flex:1;"></div>
                                 <div class="skel skel-btn" style="flex:1;"></div>
@@ -397,20 +406,50 @@
                     <div class="skel-panel">
                         <div class="skel-panel-head">
                             <div class="skel" style="width:18px; height:18px; border-radius:6px;"></div>
-                            <div class="skel skel-row" style="width:140px; margin:0;"></div>
+                            <div class="skel" style="width:140px; height:20px; border-radius:6px;"></div>
                         </div>
-                        <div class="skel-panel-body" style="flex:none; gap: 12px;">
-                            <div class="skel skel-line w80"></div>
-                            <div class="skel skel-line w80"></div>
-                            <div class="skel skel-line w80"></div>
-                            <div class="skel skel-line w60"></div>
-                            <div class="skel skel-line w80"></div>
+                        <div class="skel-panel-body" style="flex:none; gap:12px;">
+                            <div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div class="skel" style="width:55px; height:18px; border-radius:6px;"></div>
+                                    <div class="skel" style="width:36px; height:18px; border-radius:6px;"></div>
+                                </div>
+                                <div class="skel" style="height:8px; border-radius:4px; margin-top:8px; opacity:0.55;"></div>
+                            </div>
+                            <div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div class="skel" style="width:95px; height:18px; border-radius:6px;"></div>
+                                    <div class="skel" style="width:80px; height:18px; border-radius:6px;"></div>
+                                </div>
+                                <div class="skel" style="height:8px; border-radius:4px; margin-top:8px; opacity:0.55;"></div>
+                            </div>
+                            <div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div class="skel" style="width:55px; height:18px; border-radius:6px;"></div>
+                                    <div class="skel" style="width:36px; height:18px; border-radius:6px;"></div>
+                                </div>
+                                <div class="skel" style="height:8px; border-radius:4px; margin-top:8px; opacity:0.55;"></div>
+                            </div>
+                            <div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div class="skel" style="width:130px; height:18px; border-radius:6px;"></div>
+                                    <div class="skel" style="width:36px; height:18px; border-radius:6px;"></div>
+                                </div>
+                                <div class="skel" style="height:8px; border-radius:4px; margin-top:8px; opacity:0.55;"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+        <div id="skel-bn">
+            <div class="skel-bn-item"><div class="skel" style="width:17px; height:17px; border-radius:5px;"></div><div class="skel" style="width:44px; height:8px; border-radius:4px;"></div></div>
+            <div class="skel-bn-item"><div class="skel" style="width:17px; height:17px; border-radius:5px;"></div><div class="skel" style="width:44px; height:8px; border-radius:4px;"></div></div>
+            <div class="skel-bn-item"><div class="skel" style="width:17px; height:17px; border-radius:5px;"></div><div class="skel" style="width:44px; height:8px; border-radius:4px;"></div></div>
+            <div class="skel-bn-item"><div class="skel" style="width:17px; height:17px; border-radius:5px;"></div><div class="skel" style="width:44px; height:8px; border-radius:4px;"></div></div>
+            <div class="skel-bn-item"><div class="skel" style="width:17px; height:17px; border-radius:5px;"></div><div class="skel" style="width:44px; height:8px; border-radius:4px;"></div></div>
+        </div>
     </div>
 
     <div id="auth-overlay" class="modal-overlay" style="display:none; opacity:1; z-index:100000; background: var(--bg-base); flex-direction:column; justify-content:center; align-items:center;">
