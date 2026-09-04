@@ -70,6 +70,8 @@
         .conn-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; }
         .uptime-bar { height: 8px; background: var(--bg-hover); border-radius: 4px; overflow: hidden; margin-top: 8px; }
         .uptime-fill { height: 100%; background: var(--success); border-radius: 4px; transition: width 0.6s ease; }
+        .auth-error { display: none; margin: 12px 24px 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--danger-bg); border: 1px solid var(--danger); color: var(--danger); font-size: 0.8rem; font-weight: 600; line-height: 1.45; }
+        .auth-error::before { content: '\f06a'; font-family: 'Font Awesome 6 Free'; font-weight: 900; margin-right: 8px; }
 
         .sidebar { width: 260px; background-color: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; transition: var(--transition); flex-shrink: 0; }
         .logo-box { height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 24px; font-size: 1.15rem; font-weight: 800; color: #fff; flex-shrink: 0; border-bottom: 1px solid var(--border); background: var(--bg-base); }
@@ -126,6 +128,7 @@
         .panel-body-unpadded { padding: 0; flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 
         .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; flex-shrink: 0; }
+        .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; flex-shrink: 0; }
         .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; flex-shrink: 0; }
         .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; flex: 1; min-height: 0; flex-shrink: 1; }
         .grid-1-2 { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; flex-shrink: 0; }
@@ -252,7 +255,7 @@
             .app-wrapper { height: auto; min-height: 100vh; overflow: visible; }
             .content-area { height: auto; overflow: visible; }
             .tab-view { height: auto; overflow: visible; }
-            .grid-4, .grid-3 { grid-template-columns: repeat(2, 1fr); }
+            .grid-4, .grid-3, .grid-6 { grid-template-columns: repeat(2, 1fr); }
             .grid-1-2 { grid-template-columns: 1fr; }
             .sidebar { position: fixed; left: -260px; top: 0; bottom: 0; height: 100vh; box-shadow: 10px 0 30px rgba(0,0,0,0.6); }
             .sidebar.open { left: 0; }
@@ -267,7 +270,7 @@
             .skel-metric-grid { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 600px) {
-            .grid-4, .grid-3, .grid-2, .form-grid { grid-template-columns: 1fr; }
+            .grid-4, .grid-3, .grid-6, .grid-2, .form-grid { grid-template-columns: 1fr; }
             .header-section { flex-direction: column; align-items: flex-start; }
             .modal-tabs { overflow-x: auto; white-space: nowrap; }
             .content-area { padding: 12px; }
@@ -327,6 +330,7 @@
         <div class="modal show" style="max-width: 420px; width: 100%; margin:0 20px; position:relative; transform:none; box-shadow:0 24px 60px rgba(0,0,0,0.8);">
             <div class="modal-header" style="justify-content:center; padding:20px;"><div class="panel-title" id="auth-title" style="font-size:1.1rem;"><i class="fa-solid fa-lock text-accent"></i> Authentication Required</div></div>
             <div class="modal-body" id="auth-body" style="padding:24px;"></div>
+            <div class="auth-error" id="auth-error"></div>
         </div>
     </div>
 
@@ -338,6 +342,7 @@
         <div class="nav-menu">
             <div class="nav-label">Core Analytics</div>
             <div class="nav-item active" data-action="switchTab" data-tab="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</div>
+            <div class="nav-item" data-action="switchTab" data-tab="analytics"><i class="fa-solid fa-chart-line"></i> Analytics</div>
             <div class="nav-label">Traffic Routing</div>
             <div class="nav-item" data-action="switchTab" data-tab="clients"><i class="fa-solid fa-users"></i> Client Profiles</div>
             <div class="nav-item" data-action="switchTab" data-tab="sublab"><i class="fa-solid fa-flask"></i> Subscription Lab</div>
@@ -371,45 +376,37 @@
         <div class="content-area">
 
             <div id="tab-dashboard" class="tab-view active">
-                <div class="header-section"><div><h2>System Dashboard</h2><p>Real-time telemetry and gateway controls — streamed over WebSocket.</p></div></div>
+                <div class="header-section"><div><h2>System Dashboard</h2><p>Gateway status and control. Full telemetry lives in the Analytics tab.</p></div></div>
 
-                <div class="grid-4">
+                <div class="panel" style="max-width: 640px;">
+                    <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-power-off text-info"></i> Gateway Control</div></div>
+                    <div class="panel-body" style="gap: 14px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Gateway Status</span><span class="tag tag-red" id="dash-status-tag">Offline</span></div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Active Connections</span><span class="mono" id="dash-conns">0</span></div>
+                        <p style="color:var(--text-muted); font-size:0.8rem; line-height:1.5; margin:0;">Stopping or restarting the gateway immediately severs all active client connections. It is an application-managed service — no external process is launched.</p>
+                        <div style="display:flex; gap:12px;">
+                            <button class="btn" style="flex:1; background:var(--accent-bg); color:var(--accent); border:none;" data-action="gatewayAction" data-action-arg="start"><i class="fa-solid fa-play"></i> Start</button>
+                            <button class="btn" style="flex:1; background:var(--danger-bg); color:var(--danger); border:none;" data-action="gatewayAction" data-action-arg="stop"><i class="fa-solid fa-stop"></i> Stop</button>
+                            <button class="btn btn-primary" style="flex:1;" data-action="gatewayAction" data-action-arg="restart"><i class="fa-solid fa-rotate-right"></i> Restart</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-analytics" class="tab-view">
+                <div class="header-section"><div><h2>Analytics</h2><p>Real-time traffic, system health, uptime and live connections — streamed over WebSocket.</p></div></div>
+
+                <div class="grid-6">
                     <div class="metric-card"><div class="metric-title">Download <i class="fa-solid fa-arrow-down-long" style="color:var(--accent)"></i></div><div class="metric-val mono" id="m-rx">0.00 <span class="metric-sub">GB</span></div></div>
                     <div class="metric-card"><div class="metric-title">Upload <i class="fa-solid fa-arrow-up-long" style="color:var(--info)"></i></div><div class="metric-val mono" id="m-tx">0.00 <span class="metric-sub">GB</span></div></div>
                     <div class="metric-card"><div class="metric-title">Speed (DL/UL) <i class="fa-solid fa-gauge-high" style="color:var(--purple)"></i></div><div class="metric-val mono" id="m-speed">0 <span class="metric-sub">/ 0 Mbps</span></div></div>
+                    <div class="metric-card"><div class="metric-title">Active Connections <i class="fa-solid fa-plug" style="color:var(--info)"></i></div><div class="metric-val mono" id="a-conns">0</div></div>
                     <div class="metric-card"><div class="metric-title">Gateway Uptime <i class="fa-solid fa-clock" style="color:var(--warning)"></i></div><div class="metric-val mono" id="m-uptime">0h 00m</div></div>
+                    <div class="metric-card"><div class="metric-title">30-Day Uptime <i class="fa-solid fa-shield-heart" style="color:var(--success)"></i></div><div class="metric-val mono" id="a-uptime30">0.0%</div></div>
                 </div>
 
-                <div class="grid-2" style="flex: 1; min-height: 0; flex-shrink: 1;">
-                    <div style="display:flex; flex-direction:column; gap:16px; flex: 1; min-width: 0; min-height: 0;">
-                        <div class="panel" style="flex: 1; min-height: 0;">
-                            <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-heart-pulse text-accent"></i> Health Overview</div></div>
-                            <div class="panel-body" style="gap: 12px;">
-                                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Gateway Status</span><span class="tag tag-red" id="dash-status-tag">Offline</span></div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Active Connections</span><span class="mono" id="dash-conns">0</span></div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">System Load Avg</span><span class="mono" id="dash-load-avg">0.00</span></div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Memory</span><span class="mono" id="dash-mem-alloc">0 / 0 MB</span></div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">CPU</span><span class="mono" id="dash-cpu">0%</span></div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Disk</span><span class="mono" id="dash-disk">0%</span></div>
-                                <div>
-                                    <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">30-Day Uptime</span><span class="mono" id="dash-uptime">0%</span></div>
-                                    <div class="uptime-bar"><div class="uptime-fill" id="uptime-fill" style="width:0%"></div></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="panel" style="flex-shrink: 1; min-height: 0;">
-                            <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-power-off text-info"></i> Gateway Control</div></div>
-                            <div class="panel-body" style="gap: 12px;">
-                                <p style="color:var(--text-muted); font-size:0.8rem; line-height:1.5; margin:0;">Stopping or restarting the gateway immediately severs all active client connections. It is an application-managed service — no external process is launched.</p>
-                                <div style="display:flex; gap:12px;">
-                                    <button class="btn" style="flex:1; background:var(--accent-bg); color:var(--accent); border:none;" data-action="gatewayAction" data-action-arg="start"><i class="fa-solid fa-play"></i> Start</button>
-                                    <button class="btn" style="flex:1; background:var(--danger-bg); color:var(--danger); border:none;" data-action="gatewayAction" data-action-arg="stop"><i class="fa-solid fa-stop"></i> Stop</button>
-                                    <button class="btn btn-primary" style="flex:1;" data-action="gatewayAction" data-action-arg="restart"><i class="fa-solid fa-rotate-right"></i> Restart</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="panel" style="flex: 1; min-width: 0; min-height: 0;">
+                <div class="grid-3">
+                    <div class="panel" style="min-height:0;">
                         <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-wave-square text-accent"></i> Global Traffic Flow</div>
                             <div class="traffic-totals"><span><i class="fa-solid fa-arrow-down-long" style="color:var(--accent);"></i> <b id="t-rx">0.00</b> GB</span><span><i class="fa-solid fa-arrow-up-long" style="color:var(--info);"></i> <b id="t-tx">0.00</b> GB</span></div>
                         </div>
@@ -417,13 +414,53 @@
                             <div class="chart-wrapper" style="padding: 0;"><canvas id="chart-traffic"></canvas></div>
                         </div>
                     </div>
+                    <div class="panel" style="min-height:0;">
+                        <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-heart-pulse text-accent"></i> System Health</div></div>
+                        <div class="panel-body" style="gap: 14px;">
+                            <div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">CPU</span><span class="mono" id="dash-cpu">0%</span></div>
+                                <div class="uptime-bar"><div class="uptime-fill" id="cpu-bar-fill" style="width:0%"></div></div>
+                            </div>
+                            <div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Memory</span><span class="mono" id="dash-mem-alloc">0 / 0 MB</span></div>
+                                <div class="uptime-bar"><div class="uptime-fill" id="mem-bar-fill" style="width:0%"></div></div>
+                            </div>
+                            <div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Disk</span><span class="mono" id="dash-disk">0%</span></div>
+                                <div class="uptime-bar"><div class="uptime-fill" id="disk-bar-fill" style="width:0%"></div></div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">System Load Avg</span><span class="mono" id="dash-load-avg">0.00</span></div>
+                            <div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">30-Day Uptime</span><span class="mono" id="dash-uptime">0%</span></div>
+                                <div class="uptime-bar"><div class="uptime-fill" id="uptime-fill" style="width:0%"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel" style="min-height:0;">
+                        <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-plug-circle-bolt text-purple"></i> Live Connections <span id="conn-count-badge" class="tag tag-blue" style="margin-left:8px;">0</span></div></div>
+                        <div class="panel-body-unpadded" style="overflow-y:auto;">
+                            <div id="live-connections" style="min-height:60px;">
+                                <div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:22px 0;">No active connections</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="panel" style="flex-shrink: 0; max-height: 260px;">
-                    <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-plug-circle-bolt text-purple"></i> Live Connections <span id="conn-count-badge" class="tag tag-blue" style="margin-left:8px;">0</span></div></div>
-                    <div class="panel-body-unpadded" style="overflow-y:auto;">
-                        <div id="live-connections" style="min-height:60px;">
-                            <div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:22px 0;">No active connections</div>
+                <div class="grid-2" style="flex: 1; min-height: 0; flex-shrink: 1;">
+                    <div class="panel" style="min-height:0;">
+                        <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-users text-accent"></i> Client Activity</div></div>
+                        <div class="panel-body-unpadded" style="overflow-y:auto;">
+                            <div id="client-activity" style="min-height:60px;">
+                                <div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:22px 0;">No clients yet</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel" style="min-height:0;">
+                        <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-globe text-info"></i> Top Destinations</div></div>
+                        <div class="panel-body-unpadded" style="overflow-y:auto;">
+                            <div id="dest-breakdown" style="min-height:60px;">
+                                <div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:22px 0;">No active traffic</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -527,6 +564,7 @@
 
     <nav class="bottom-nav" aria-label="Primary">
         <div class="bn-item active" data-action="switchTab" data-tab="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</div>
+        <div class="bn-item" data-action="switchTab" data-tab="analytics"><i class="fa-solid fa-chart-line"></i> Analytics</div>
         <div class="bn-item" data-action="switchTab" data-tab="clients"><i class="fa-solid fa-users"></i> Clients</div>
         <div class="bn-item" data-action="switchTab" data-tab="sublab"><i class="fa-solid fa-flask"></i> Sublab</div>
         <div class="bn-item" data-action="switchTab" data-tab="logs"><i class="fa-solid fa-terminal"></i> Logs</div>
@@ -674,8 +712,8 @@
 
         function switchTab(tabId) {
             document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
-            const trigger = document.querySelector(`.nav-item[onclick*="switchTab('${tabId}')"]`);
-            if (trigger) trigger.classList.add('active');
+            document.querySelectorAll('.bn-item').forEach(e => e.classList.remove('active'));
+            document.querySelectorAll(`.nav-item[data-tab="${tabId}"], .bn-item[data-tab="${tabId}"]`).forEach(e => e.classList.add('active'));
             document.querySelectorAll('.tab-view').forEach(e => e.classList.remove('active'));
             const target = document.getElementById('tab-' + tabId);
             if (target) target.classList.add('active');
@@ -691,7 +729,10 @@
             }
             if (window.innerWidth <= 1024) document.getElementById('sidebar').classList.remove('open');
             if (tabId === 'logs') filterLogs();
-            ensureCharts();
+            if (tabId === 'dashboard' || tabId === 'analytics' || tabId === 'clients') ensureCharts();
+            setTimeout(function() {
+                try { [trafficChart, clientPieChart, clientFlowChart].forEach(c => c && c.resize()); } catch (e) {}
+            }, 80);
         }
 
         
@@ -956,9 +997,16 @@
             if (el('dash-cpu')) el('dash-cpu').innerText = `${Number(t.cpuPercent || 0).toFixed(1)}%`;
             if (el('dash-disk')) el('dash-disk').innerText = `${Number(t.diskPct || 0).toFixed(1)}%`;
             if (el('dash-uptime')) el('dash-uptime').innerText = `${Number(t.uptime30d || 0).toFixed(1)}%`;
+            if (el('a-conns')) el('a-conns').innerText = String(t.connections || 0);
+            if (el('a-uptime30')) el('a-uptime30').innerText = `${Number(t.uptime30d || 0).toFixed(1)}%`;
             const uf = document.getElementById('uptime-fill');
             if (uf) uf.style.width = `${Math.min(100, Number(t.uptime30d || 0))}%`;
+            if (el('cpu-bar-fill')) el('cpu-bar-fill').style.width = `${Math.min(100, Number(t.cpuPercent || 0))}%`;
+            if (el('mem-bar-fill')) el('mem-bar-fill').style.width = `${Math.min(100, (Number(t.ramTotalMb) > 0 ? (Number(t.ramMb || 0) / Number(t.ramTotalMb)) * 100 : 0))}%`;
+            if (el('disk-bar-fill')) el('disk-bar-fill').style.width = `${Math.min(100, Number(t.diskPct || 0))}%`;
             renderConnections(t.connectionDetails);
+            renderClientActivity();
+            renderDestinations();
             renderClients();
 
             if (el('t-rx')) el('t-rx').innerText = Number(t.totalRxGb || 0).toFixed(2);
@@ -1194,6 +1242,62 @@
                 </div>`;
             });
             box.innerHTML = html;
+        }
+
+        function renderClientActivity() {
+            const box = document.getElementById('client-activity');
+            if (!box) return;
+            const speeds = (appState.telemetry && appState.telemetry.clientSpeeds) || {};
+            const sig = appState.clients.map(c => (c.id || '') + ':' + (c.usage || 0) + ':' + (c.limit || 0) + ':' + (speeds[c.id] ? (speeds[c.id].down_bps || 0) + '/' + (speeds[c.id].up_bps || 0) : '0/0')).join(',');
+            if (box.dataset.sig === sig) return;
+            box.dataset.sig = sig;
+            const rows = appState.clients.map(c => {
+                const sp = speeds[c.id] || {};
+                const used = Number(c.usage || 0);
+                const lim = Number(c.limit || 0);
+                const pct = lim > 0 ? Math.min(100, (used / lim) * 100) : 0;
+                const barColor = pct > 90 ? 'background:var(--danger);' : (pct > 75 ? 'background:var(--warning);' : '');
+                return `
+                    <div class="conn-row" style="cursor:default;">
+                        <div class="conn-flag"><i class="fa-solid fa-user" style="color:var(--accent);"></i></div>
+                        <div class="conn-main">
+                            <div class="conn-title">${esc(c.name)}</div>
+                            <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+                                <div class="uptime-bar" style="flex:1; margin-top:0;"><div class="uptime-fill" style="width:${pct}%; ${barColor}"></div></div>
+                                <span class="mono" style="font-size:0.65rem; color:var(--text-muted); white-space:nowrap;">${used.toFixed(2)} / ${lim === 0 ? '∞' : lim + ' GB'}</span>
+                            </div>
+                        </div>
+                        <div class="conn-stats"><span class="speed-badge" style="margin-top:0;"><span class="dl">↓ ${fmtSpeed(sp.down_bps)}</span><span class="ul"> ↑ ${fmtSpeed(sp.up_bps)}</span></span></div>
+                    </div>`;
+            }).join('');
+            box.innerHTML = rows || '<div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:22px 0;">No clients yet</div>';
+        }
+
+        function renderDestinations() {
+            const box = document.getElementById('dest-breakdown');
+            if (!box) return;
+            const details = (appState.telemetry && appState.telemetry.connectionDetails) || [];
+            const agg = {};
+            details.forEach(c => {
+                const key = (c.dest || '?') + ':' + (c.dest_port || 0);
+                if (!agg[key]) agg[key] = { key: key, proto: (c.protocol || 'tcp').toUpperCase(), count: 0, bytes: 0 };
+                agg[key].count++;
+                agg[key].bytes += (c.rx_bytes || 0) + (c.tx_bytes || 0);
+            });
+            const list = Object.values(agg);
+            const sig = list.map(a => a.key + ':' + a.count + ':' + a.bytes).join(',');
+            if (box.dataset.sig === sig) return;
+            box.dataset.sig = sig;
+            const rows = list.sort((a, b) => b.bytes - a.bytes).map(a => `
+                <div class="conn-row" style="cursor:default;">
+                    <div class="conn-flag"><i class="fa-solid fa-globe" style="color:var(--info);"></i></div>
+                    <div class="conn-main">
+                        <div class="conn-title">${esc(a.key)} <span class="tag tag-blue" style="font-size:0.6rem; margin-left:6px;">${esc(a.proto)}</span></div>
+                        <div class="conn-sub">${a.count} active connection${a.count > 1 ? 's' : ''}</div>
+                    </div>
+                    <div class="conn-stats"><span style="color:var(--text-muted);">${fmtBytes(a.bytes)}</span></div>
+                </div>`).join('');
+            box.innerHTML = rows || '<div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:22px 0;">No active traffic</div>';
         }
 
         let inspectedConn = null;
@@ -1520,7 +1624,15 @@
         
         
         
+        function setAuthError(msg) {
+            const el = document.getElementById('auth-error');
+            if (!el) return;
+            if (msg) { el.textContent = msg; el.style.display = 'block'; }
+            else { el.textContent = ''; el.style.display = 'none'; }
+        }
+
         function renderSetupForm() {
+            setAuthError('');
             const overlay = document.getElementById('auth-overlay');
             overlay.style.display = 'flex';
             document.getElementById('auth-title').innerHTML = '<i class="fa-solid fa-key text-accent"></i> Setup Password';
@@ -1531,6 +1643,7 @@
                 <button class="btn btn-primary" style="width:100%; margin-top:20px;" data-action="setupPassword"><i class="fa-solid fa-arrow-right"></i> Save & Continue</button>`;
         }
         function renderLoginForm() {
+            setAuthError('');
             const overlay = document.getElementById('auth-overlay');
             overlay.style.display = 'flex';
             document.getElementById('auth-title').innerHTML = '<i class="fa-solid fa-lock text-accent"></i> Authentication Required';
@@ -1541,31 +1654,44 @@
         window.setupPassword = function() {
             const p1 = document.getElementById('new-pass-input')?.value;
             const p2 = document.getElementById('confirm-pass-input')?.value;
-            if (!p1) return showToast('Password cannot be empty', 'error');
-            if (p1.length < 4) return showToast('Password must be at least 4 characters', 'error');
-            if (p1 !== p2) return showToast('Passwords do not match', 'error');
+            setAuthError('');
+            if (!p1) return setAuthError('Password cannot be empty');
+            if (p1.length < 4) return setAuthError('Password must be at least 4 characters');
+            if (p1 !== p2) return setAuthError('Passwords do not match');
             fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass: p1 }) })
-                .then(r => r.json()).then(d => {
-                    if (d.ok) {
+                .then(async r => {
+                    let d = null;
+                    try { d = await r.json(); } catch (e) {}
+                    if (r.ok && d && d.ok) {
                         showToast('Password setup successful!', 'success');
                         setTimeout(() => location.reload(), 400);
-                    } else {
-                        showToast('Setup failed: ' + (d.error || d.detail || 'check inputs'), 'error');
+                        return;
                     }
-                }).catch(() => showToast('Network error', 'error'));
+                    if (r.status === 429) setAuthError('Too many attempts. Wait about a minute and try again.');
+                    else if (r.status === 403) setAuthError('Request was rejected (origin check). Refresh the page and try again.');
+                    else setAuthError((d && (d.detail || d.error)) || ('Server error (' + r.status + ')'));
+                })
+                .catch(() => setAuthError('Network error — check your connection and try again.'));
         };
         window.doLogin = function() {
             const p = document.getElementById('pass-input')?.value;
-            if (!p) return showToast('Enter a password', 'error');
+            setAuthError('');
+            if (!p) return setAuthError('Please enter a password');
             fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass: p }) })
-                .then(r => r.json()).then(d => {
-                    if (d.ok) {
+                .then(async r => {
+                    let d = null;
+                    try { d = await r.json(); } catch (e) {}
+                    if (r.ok && d && d.ok) {
                         showToast('Login successful!', 'success');
                         setTimeout(() => location.reload(), 400);
-                    } else {
-                        showToast('Incorrect password', 'error');
+                        return;
                     }
-                }).catch(() => showToast('Network error', 'error'));
+                    if (r.status === 429) setAuthError('Too many login attempts. Wait about a minute and try again.');
+                    else if (r.status === 401) setAuthError('Incorrect password. Check your password and try again.');
+                    else if (r.status === 403) setAuthError('Request was rejected (origin check). Refresh the page and try again.');
+                    else setAuthError((d && (d.detail || d.error)) || ('Server error (' + r.status + ')'));
+                })
+                .catch(() => setAuthError('Network error — check your connection and try again.'));
         };
         function doLogout(e) {
             if (e) e.preventDefault();
