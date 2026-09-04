@@ -203,7 +203,7 @@
         .topbar-logout { display: none; }
 
         .sublab-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 480px); gap: 20px; flex: 1; min-height: 0; flex-shrink: 1; }
-        .sublab-editor { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; padding: 0 4px 16px 0; }
+        .sublab-editor { display: flex; flex-direction: column; gap: 16px; min-height: 0; padding: 0 4px 0 0; }
         .sublab-preview { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 
         .phone-mockup-wrapper { display: flex; justify-content: center; overflow: hidden; flex: 1; min-height: 0; padding: 10px; }
@@ -468,7 +468,6 @@
                                     <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">Disk</span><span class="mono" id="dash-disk">0%</span></div>
                                     <div class="uptime-bar"><div class="uptime-fill" id="disk-bar-fill" style="width:0%"></div></div>
                                 </div>
-                                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">System Load Avg</span><span class="mono" id="dash-load-avg">0.00</span></div>
                                 <div>
                                     <div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-muted); font-weight:600; font-size:0.85rem;">30-Day Uptime</span><span class="mono" id="dash-uptime">0%</span></div>
                                     <div class="uptime-bar"><div class="uptime-fill" id="uptime-fill" style="width:0%"></div></div>
@@ -573,7 +572,7 @@
                                 </div>
                             </div>
                             <div class="panel-body-unpadded" style="overflow-y:auto; padding:16px;">
-                                <div id="sub-entries-list" style="display:flex; flex-direction:column; gap:12px; min-height:60px; padding-bottom:24px;">
+                                <div id="sub-entries-list" style="display:flex; flex-direction:column; gap:12px; min-height:60px; padding-bottom:40px; flex-shrink:0;">
                                     <div id="sub-empty-hint" style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:30px 0;">Select a client and click <strong>+ Proxy</strong> or <strong>Info</strong>.</div>
                                 </div>
                             </div>
@@ -639,6 +638,16 @@
             <div class="modal-footer">
                 <button class="btn" data-action="closeModal" data-action-arg="modal-inspector">Close</button>
                 <button class="btn btn-danger" data-action="killConn"><i class="fa-solid fa-skull-crossbones"></i> Kill Connection</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-client-info">
+        <div class="modal" style="max-width: 620px;">
+            <div class="modal-header"><div class="panel-title"><i class="fa-solid fa-circle-info text-accent"></i> Client Info</div><button class="btn-icon" style="background:none; border:none; color:var(--text-muted);" data-action="closeModal" data-action-arg="modal-client-info"><i class="fa-solid fa-times fa-lg"></i></button></div>
+            <div class="modal-body" id="client-info-body" style="font-size:0.9rem;"></div>
+            <div class="modal-footer">
+                <button class="btn" data-action="closeModal" data-action-arg="modal-client-info">Close</button>
             </div>
         </div>
     </div>
@@ -1077,7 +1086,6 @@
             if (el('m-speed')) el('m-speed').innerHTML = `${Number(t.speedDownMbps || 0).toFixed(1)} <span class="metric-sub">/ ${Number(t.speedUpMbps || 0).toFixed(1)} Mbps</span>`;
             if (el('m-speed-mini')) el('m-speed-mini').innerText = `${Number(t.speedDownMbps || 0).toFixed(1)} / ${Number(t.speedUpMbps || 0).toFixed(1)}`;
             if (el('dash-conns')) el('dash-conns').innerText = String(t.connections || 0);
-            if (el('dash-load-avg')) el('dash-load-avg').innerText = (Array.isArray(t.loadAvg) ? t.loadAvg : [0, 0, 0]).map(x => Number(x || 0).toFixed(2)).join(' / ');
             if (el('dash-mem-alloc')) el('dash-mem-alloc').innerText = `${Number(t.ramMb || 0).toFixed(0)} / ${Number(t.ramTotalMb || 512).toFixed(0)} MB`;
             if (el('dash-cpu')) el('dash-cpu').innerText = `${Number(t.cpuPercent || 0).toFixed(1)}%`;
             if (el('dash-disk')) el('dash-disk').innerText = `${Number(t.diskPct || 0).toFixed(1)}%`;
@@ -1095,6 +1103,7 @@
             renderConnections(t.connectionDetails);
             renderClientActivity();
             renderDestinations();
+            renderClientInfoModal();
             renderClients();
 
             if (el('t-rx')) el('t-rx').innerText = Number(t.totalRxGb || 0).toFixed(2);
@@ -1208,6 +1217,7 @@
                     <td><span class="mono" style="color:var(--text-muted);">${c.expiry ? new Date(c.expiry).toLocaleString() : 'Never'}</span></td>
                     <td><span class="tag ${c.status ? 'tag-green' : 'tag-red'}">${c.status ? 'Active' : 'Disabled'}</span></td>
                     <td style="text-align:right;">
+                        <button class="btn btn-icon" title="Live info" data-action="showClientInfo" data-id="${esc(c.id)}"><i class="fa-solid fa-circle-info"></i></button>
                         <button class="btn btn-icon" title="QR" data-action="showQR" data-id="${esc(c.id)}"><i class="fa-solid fa-qrcode"></i></button>
                         <button class="btn btn-icon" title="Copy subscription link" data-action="copyClientSubscriptionLink" data-id="${esc(c.id)}"><i class="fa-solid fa-link"></i></button>
                         <button class="btn btn-icon" title="Edit" data-action="openEditClient" data-id="${esc(c.id)}"><i class="fa-solid fa-pen"></i></button>
@@ -1478,6 +1488,7 @@
             else if (action === 'genUuidInput') document.getElementById('c-uuid').value = genUUID();
             else if (action === 'copyQrText') { copyToClipboard(document.getElementById('qr-text').value); showToast('Copied to clipboard!', 'success'); }
             else if (action === 'showQR') showQR(id);
+            else if (action === 'showClientInfo') showClientInfo(id);
             else if (action === 'copyClientSubscriptionLink') copyClientSubscriptionLink(id);
             else if (action === 'openEditClient') openEditClient(id);
             else if (action === 'deleteClient') deleteClient(id);
@@ -1513,6 +1524,85 @@
             if (el.id === 'confirm-pass-input') setupPassword();
             else if (el.id === 'pass-input') doLogin();
         });
+        let inspectedClientId = null;
+        function showClientInfo(id) {
+            inspectedClientId = id;
+            openModal('modal-client-info');
+            renderClientInfoModal();
+        }
+        function renderClientInfoModal() {
+            const body = document.getElementById('client-info-body');
+            const modal = document.getElementById('modal-client-info');
+            if (!body || !modal || !modal.classList.contains('show') || !inspectedClientId) return;
+            const c = appState.clients.find(x => x.id === inspectedClientId);
+            if (!c) { closeModal('modal-client-info'); return; }
+            const t = appState.telemetry || {};
+            const details = (t.connectionDetails || []).filter(d => d.client_id === c.id);
+            const sp = (t.clientSpeeds || {})[c.id] || {};
+            const used = Number(c.usage || 0);
+            const lim = Number(c.limit || 0);
+            const pct = lim > 0 ? Math.min(100, (used / lim) * 100) : 0;
+            const pctCls = pct > 90 ? 'tag-red' : (pct > 75 ? 'tag-warn' : 'tag-green');
+            const agg = {};
+            details.forEach(d => {
+                const key = (d.dest || '?') + ':' + (d.dest_port || 0);
+                if (!agg[key]) agg[key] = { key: key, proto: (d.protocol || 'tcp').toUpperCase(), count: 0, bytes: 0 };
+                agg[key].count++;
+                agg[key].bytes += (d.rx_bytes || 0) + (d.tx_bytes || 0);
+            });
+            const dests = Object.values(agg).sort((a, b) => b.bytes - a.bytes).slice(0, 8);
+            const connsHtml = details.length ? details.map(d => {
+                const geo = d.geo || {};
+                const loc = geo.country ? ((geo.city ? geo.city + ', ' : '') + geo.country) : (d.peer_ip || '—');
+                return `<div class="conn-row" data-action="inspectConn" data-conn-id="${esc(d.id)}">
+                    <div class="conn-flag">${flagEmoji(geo.code)}</div>
+                    <div class="conn-main">
+                        <div class="conn-title">${esc(d.dest)}:${d.dest_port}</div>
+                        <div class="conn-sub">${esc(loc)} • ${esc((d.protocol || 'tcp').toUpperCase())} • ${fmtDur(d.duration_sec)}</div>
+                    </div>
+                    <div class="conn-stats">
+                        <span style="color:var(--accent);">↓ ${fmtSpeed(d.down_bps)}</span>
+                        <span style="color:var(--info);">↑ ${fmtSpeed(d.up_bps)}</span>
+                        <span style="color:var(--text-muted);">${fmtBytes((d.rx_bytes || 0) + (d.tx_bytes || 0))}</span>
+                    </div>
+                </div>`;
+            }).join('') : '<div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:18px 0;">No active connections</div>';
+            const destsHtml = dests.length ? dests.map(a => `
+                <div class="conn-row" style="cursor:default;">
+                    <div class="conn-flag"><i class="fa-solid fa-globe" style="color:var(--info);"></i></div>
+                    <div class="conn-main">
+                        <div class="conn-title">${esc(a.key)} <span class="tag tag-blue" style="font-size:0.6rem; margin-left:6px;">${esc(a.proto)}</span></div>
+                        <div class="conn-sub">${a.count} active connection${a.count > 1 ? 's' : ''}</div>
+                    </div>
+                    <div class="conn-stats"><span style="color:var(--text-muted);">${fmtBytes(a.bytes)}</span></div>
+                </div>`).join('') : '<div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:18px 0;">No active traffic</div>';
+            body.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                        <div class="conn-flag"><i class="fa-solid fa-user" style="color:var(--accent);"></i></div>
+                        <div style="min-width:0;">
+                            <div style="font-weight:800; font-size:1rem;">${esc(c.name)}</div>
+                            <div class="mono" style="font-size:0.65rem; color:var(--text-muted);">${esc(String(c.id).split('-')[0])}…</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <span class="tag ${c.status ? 'tag-green' : 'tag-red'}">${c.status ? 'Active' : 'Disabled'}</span>
+                        <span class="tag ${pctCls}">${used.toFixed(2)} / ${lim === 0 ? '∞' : lim + ' GB'}</span>
+                    </div>
+                </div>
+                <div class="info-row"><span class="k">Live Speed</span><span class="v mono">↓ ${fmtSpeed(sp.down_bps)} / ↑ ${fmtSpeed(sp.up_bps)}</span></div>
+                <div class="info-row"><span class="k">Active Connections</span><span class="v mono">${details.length}</span></div>
+                <div class="info-row"><span class="k">Expiry</span><span class="v">${c.expiry ? new Date(c.expiry).toLocaleString() : 'Never'}</span></div>
+                <div>
+                    <div class="panel-title" style="font-size:0.85rem; margin-bottom:8px;"><i class="fa-solid fa-plug-circle-bolt text-purple"></i> Live Connections</div>
+                    <div style="border:1px solid var(--border); border-radius: var(--radius-md); overflow:hidden;">${connsHtml}</div>
+                </div>
+                <div>
+                    <div class="panel-title" style="font-size:0.85rem; margin-bottom:8px;"><i class="fa-solid fa-globe text-info"></i> Top Destinations</div>
+                    <div style="border:1px solid var(--border); border-radius: var(--radius-md); overflow:hidden;">${destsHtml}</div>
+                </div>`;
+        }
+
         function showQR(id) {
             const link = subLinkFor(id);
             document.getElementById('qr-text').value = link;

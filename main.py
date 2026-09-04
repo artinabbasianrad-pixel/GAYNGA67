@@ -942,8 +942,8 @@ stats = {
 
 
 if PROMETHEUS_ENABLED:
-    _P_RX = Counter("v2leafy_traffic_rx_bytes_total", "Inbound bytes relayed")
-    _P_TX = Counter("v2leafy_traffic_tx_bytes_total", "Outbound bytes relayed")
+    _P_RX = Counter("v2leafy_traffic_rx_bytes_total", "Bytes downloaded by clients")
+    _P_TX = Counter("v2leafy_traffic_tx_bytes_total", "Bytes uploaded by clients")
     _P_CONNS = Gauge("v2leafy_active_connections", "Active proxy connections")
     _P_CLIENT_USED = Gauge(
         "v2leafy_client_used_bytes", "Per-client used bytes", ["client_id", "name"]
@@ -1041,18 +1041,21 @@ def check_client_quota(client: ClientState, extra_bytes: int) -> bool:
     return True
 
 
-def record_traffic(client: ClientState, size: int, is_rx: bool) -> None:
+def record_traffic(client: ClientState, size: int, from_client: bool) -> None:
+    
     stats["total_bytes"] += size
-    if is_rx:
-        stats["rx_bytes"] += size
+    if from_client:
+        
+        stats["tx_bytes"] += size
         client.upload_bytes += size
         if PROMETHEUS_ENABLED:
-            _P_RX.inc(size)
+            _P_TX.inc(size)
     else:
-        stats["tx_bytes"] += size
+        
+        stats["rx_bytes"] += size
         client.download_bytes += size
         if PROMETHEUS_ENABLED:
-            _P_TX.inc(size)
+            _P_RX.inc(size)
     client.used_bytes = client.upload_bytes + client.download_bytes
     if (
         client.limit_bytes > 0
@@ -1127,11 +1130,6 @@ async def telemetry_snapshot() -> dict:
     _speed["last_time"] = now
     _speed["last_rx"] = stats["rx_bytes"]
     _speed["last_tx"] = stats["tx_bytes"]
-
-    try:
-        load_avg = [round(x, 2) for x in os.getloadavg()]
-    except (AttributeError, OSError):
-        load_avg = [0.0, 0.0, 0.0]
 
     ram_mb = 0.0
     ram_total_mb = 512.0
@@ -1224,7 +1222,6 @@ async def telemetry_snapshot() -> dict:
         "totalTxGb": round(stats["tx_bytes"] / (1024.0 ** 3), 3),
         "speedDownMbps": _speed["down_mbps"],
         "speedUpMbps": _speed["up_mbps"],
-        "loadAvg": load_avg,
         "ramMb": ram_mb,
         "ramTotalMb": ram_total_mb,
         "diskPct": disk_pct,
@@ -2894,8 +2891,8 @@ async def ws_to_tcp(
             if not check_client_quota(client, len(data)):
                 await websocket.close(code=1008, reason="Quota exceeded")
                 break
-            record_traffic(client, len(data), is_rx=True)
-            conn_info["rx_bytes"] += len(data)
+            record_traffic(client, len(data), from_client=True)
+            conn_info["tx_bytes"] += len(data)
             conn_info["last_activity"][0] = time.time()
             writer.write(data)
             await writer.drain()
@@ -2928,8 +2925,8 @@ async def tcp_to_ws(
             if not check_client_quota(client, len(prelude)):
                 await websocket.close(code=1008, reason="Quota exceeded")
                 return
-            record_traffic(client, len(prelude), is_rx=False)
-            conn_info["tx_bytes"] += len(prelude)
+            record_traffic(client, len(prelude), from_client=False)
+            conn_info["rx_bytes"] += len(prelude)
             conn_info["last_activity"][0] = time.time()
             if not await sender.send(prelude, first_prefix=True):
                 return
@@ -2949,8 +2946,8 @@ async def tcp_to_ws(
             if not check_client_quota(client, len(chunk)):
                 await websocket.close(code=1008, reason="Quota exceeded")
                 break
-            record_traffic(client, len(chunk), is_rx=False)
-            conn_info["tx_bytes"] += len(chunk)
+            record_traffic(client, len(chunk), from_client=False)
+            conn_info["rx_bytes"] += len(chunk)
             conn_info["last_activity"][0] = time.time()
             if not await sender.send(chunk, first_prefix=first):
                 break
@@ -3065,8 +3062,8 @@ class UdpRelayProtocol(asyncio.DatagramProtocol):
         if not check_client_quota(self.client, len(data)):
             self.transport.close()
             return
-        record_traffic(self.client, len(data), is_rx=False)
-        self.conn_info["tx_bytes"] += len(data)
+        record_traffic(self.client, len(data), from_client=False)
+        self.conn_info["rx_bytes"] += len(data)
         self.conn_info["last_activity"][0] = time.time()
         framed = struct.pack(">H", len(data)) + data
         asyncio.ensure_future(self.sender.send(framed, first_prefix=self.sender.first))
@@ -3108,8 +3105,8 @@ async def _udp_session(
             if not check_client_quota(client, len(pending)):
                 await websocket.close(code=1008, reason="Quota exceeded")
                 break
-            record_traffic(client, len(pending), is_rx=True)
-            conn_info["rx_bytes"] += len(pending)
+            record_traffic(client, len(pending), from_client=True)
+            conn_info["tx_bytes"] += len(pending)
             conn_info["last_activity"][0] = time.time()
             malformed = False
             pos = 0
@@ -3316,7 +3313,7 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
             "ed": ed_requested,
         }
         proxy_connections[conn_id] = conn_info
-        record_traffic(client, len(first_chunk), is_rx=True)
+        record_traffic(client, len(first_chunk), from_client=True)
         if not check_client_quota(client, 0):
             await websocket.close(code=1008, reason="Quota exceeded")
             return
