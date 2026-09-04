@@ -536,12 +536,14 @@ class ClientCreateRequest(BaseModel):
     limit_value: float = Field(default=0.0, ge=0, le=1_000_000_000)
     limit_unit: Literal["GB", "MB"] = "GB"
     expiry: str = Field(default="", max_length=40)
+    active: Optional[bool] = None
 
 
 class ClientPatchRequest(BaseModel):
     active: Optional[bool] = None
     label: Optional[str] = Field(default=None, min_length=1, max_length=60)
     limit_value: Optional[float] = Field(default=None, ge=0, le=1_000_000_000)
+    expiry: Optional[str] = Field(default=None, max_length=40)
     reset_usage: Optional[bool] = None
     billing_cycle: Optional[Literal["none", "monthly", "weekly"]] = None
 
@@ -2204,14 +2206,15 @@ async def create_link_api(request: Request, body: ClientCreateRequest, _=Depends
         else int(body.limit_value * (1024.0 ** 2))
     )
     cid = generate_uuid()
+    is_active = True if body.active is None else bool(body.active)
     client = ClientState(
         id=cid,
         name=sanitize_client_name(body.label),
         limit=body.limit_value,
         limit_bytes=limit_bytes,
         expiry=sanitize_text(body.expiry, 40),
-        status=1,
-        active=True,
+        status=1 if is_active else 0,
+        active=is_active,
         utls="chrome",
         created_at=datetime.now().isoformat(),
         ws_token=secrets.token_urlsafe(24),
@@ -2248,6 +2251,8 @@ async def patch_link_api(uid: str, request: Request, body: ClientPatchRequest, _
         if body.limit_value is not None:
             client.limit = body.limit_value
             client.limit_bytes = int(body.limit_value * (1024.0 ** 3))
+        if body.expiry is not None:
+            client.expiry = sanitize_text(body.expiry, 40)
         if body.billing_cycle is not None:
             client.billing_cycle = body.billing_cycle
             if body.billing_cycle == "none":
