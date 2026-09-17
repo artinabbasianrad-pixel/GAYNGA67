@@ -3621,91 +3621,60 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
             except OSError:
                 pass
 
-            if header["command"] == 1:
-                
-                # Captavoidance: add timing jitter before connection
-                if JITTER_MAX_MS > 0 and not pooled_entry:
-                    import random
-                    jitter_ms = random.uniform(0, JITTER_MAX_MS) / 1000.0
-                    await asyncio.sleep(jitter_ms)
-                
-                pooled_entry = TCP_POOL.acquire(client.id, header["address"], header["port"])
-                reader = writer = sock = None
-                for attempt in (0, 1):
-                    dial_start = time.time()
-                    try:
-                        if attempt == 0 and pooled_entry:
-                            reader, writer, sock = pooled_entry
-                            if writer.is_closing():
-                                pooled_entry = None
-                                reader = writer = sock = None
-                                continue
-                        else:
-                            reader, writer = await asyncio.wait_for(
-                                asyncio.open_connection(header["address"], header["port"]),
-                                timeout=TCP_CONNECT_TIMEOUT,
-                            )
-                            try:
-                                sock = writer.get_extra_info("socket")
-                            except Exception:
-                                sock = None
-                            pooled_entry = None
-                    except (asyncio.TimeoutError, OSError, ConnectionError) as exc:
-                        if attempt == 0 and pooled_entry:
-                            pooled_entry = None
-                            continue
-                        logger.warning(
-                            "Upstream %s:%s unreachable (%s: %s)",
-                            header["address"], header["port"], type(exc).__name__, exc,
-                        )
-                        raise ConnectionError("upstream unreachable")
-                    rtt_ms = (time.time() - dial_start) * 1000.0
-                    conn_info["writer"] = writer
-                    if sock:
-                        _apply_socket_opts(sock)
-                    if header["payload"]:
-                        writer.write(header["payload"])
-                        await writer.drain()
-                    try:
-                        prelude = await asyncio.wait_for(
-                            reader.read(1), timeout=TCP_FIRST_BYTE_TIMEOUT
-                        )
-                    except asyncio.TimeoutError:
-                        try:
-                            writer.close()
-                        except Exception:
-                            pass
-                        if attempt == 0 and pooled_entry:
-                            pooled_entry = None
-                            continue
-                        logger.warning(
-                            "Upstream %s:%s first byte timeout",
-                            header["address"], header["port"],
-                        )
-                        raise ConnectionError("upstream first byte timeout")
-                    if prelude == b"":
-                        try:
-                            writer.close()
-                        except Exception:
-                            pass
-                        if attempt == 0 and pooled_entry:
-                            pooled_entry = None
-                            continue
-                        logger.warning(
-                            "Upstream %s:%s closed immediately",
-                            header["address"], header["port"],
-                        )
-                        raise ConnectionError("upstream closed immediately")
-                    break
+        if header["command"] == 1:
+            # Captavoidance: add timing jitter before connection
+            if JITTER_MAX_MS > 0 and not pooled_entry:
+                import random
+                jitter_ms = random.uniform(0, JITTER_MAX_MS) / 1000.0
+                await asyncio.sleep(jitter_ms)
 
-            # FIX 7: recalculate RTT including first-byte latency
-            first_byte_time = time.time()
-            rtt_ms = (first_byte_time - dial_start) * 1000.0
+            pooled_entry = TCP_POOL.acquire(client.id, header["address"], header["port"])
+            reader = writer = sock = None
+            prelude = b""
+            dial_start = time.time()
+            rtt_ms = 0.0
+            for attempt in (0, 1):
+                dial_start = time.time()
+                try:
+                    if attempt == 0 and pooled_entry:
+                        reader, writer, sock = pooled_entry
+                        if writer.is_closing():
+                            pooled_entry = None
+                            reader = writer = sock = None
+                            continue
+                    else:
+                        reader, writer = await asyncio.wait_for(
+                            asyncio.open_connection(header["address"], header["port"]),
+                            timeout=TCP_CONNECT_TIMEOUT,
+                        )
+                        try:
+                            sock = writer.get_extra_info("socket")
+                        except Exception:
+                            sock = None
+                        pooled_entry = None
+                except (asyncio.TimeoutError, OSError, ConnectionError) as exc:
+                    if attempt == 0 and pooled_entry:
+                        pooled_entry = None
+                        continue
+                    logger.warning(
+                        "Upstream %s:%s unreachable (%s: %s)",
+                        header["address"], header["port"], type(exc).__name__, exc,
+                    )
+                    raise ConnectionError("upstream unreachable")
+                conn_info["writer"] = writer
+                if sock:
+                    _apply_socket_opts(sock)
+                if header["payload"]:
+                    writer.write(header["payload"])
+                    await writer.drain()
+                break
+
+            rtt_ms = (time.time() - dial_start) * 1000.0
             conn_info["rtt_ms"] = rtt_ms
             logger.info(
                 "Upstream handshake %.0fms to %s:%s [%s]",
                 rtt_ms, header["address"], header["port"],
-                header["protocol"].upper(),
+                conn_info.get("protocol", "tcp").upper(),
                 extra=_log_ctx(client_id=client.id),
             )
             if rtt_ms > 2000:
