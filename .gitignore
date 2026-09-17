@@ -4,3 +4,11 @@ storage/
 .freebuff/
 .venv/
 node_modules/
+.env*
+.vscode/
+*.log
+NetLeafy-main/
+.DS_Store
+Thumbs.db
+.idea/
+*.egg-info/

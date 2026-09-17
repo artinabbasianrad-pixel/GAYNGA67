@@ -1,0 +1,15 @@
+.git
+.github
+.vscode
+.idea
+.freebuff
+.venv
+node_modules
+storage
+*.pyc
+__pycache__
+.env*
+*.log
+NetLeafy-main
+docs
+gunicorn_config.py

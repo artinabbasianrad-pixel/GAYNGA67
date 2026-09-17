@@ -7,3 +7,5 @@ uvloop==0.22.1; sys_platform != 'win32'
 brotli==1.1.0; sys_platform != 'win32'
 brotlicffi==1.1.0.0; sys_platform == 'win32'
 prometheus-client==0.21.1
+pydantic>=2,<3
+starlette>=0.36,<1

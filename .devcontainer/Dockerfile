@@ -1,3 +1,4 @@
+# Pin digest for reproducibility: docker inspect --format='{{index .RepoDigests 0}}' debian:bookworm-slim
 FROM debian:bookworm-slim
 
 LABEL maintainer="Code-Leafy" \
@@ -30,7 +31,11 @@ RUN python3 -m venv /opt/leafy-venv \
         fastapi==0.141.1 \
         "uvicorn[standard]==0.52.4" \
         httpx==0.28.1 \
-        psutil==7.2.2
+        psutil==7.2.2 \
+        orjson==3.11.9 \
+        uvloop==0.22.1 \
+        brotli==1.1.0 \
+        prometheus-client==0.21.1
 
 ENV PATH="/opt/leafy-venv/bin:$PATH" \
     VIRTUAL_ENV=/opt/leafy-venv

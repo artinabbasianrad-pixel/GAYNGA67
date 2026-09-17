@@ -202,7 +202,7 @@ V2Leafy/
 
 ### Platform constraints
 
-- **UDP forwarding (VLESS command 2)**: implemented, but **disabled by default** (`UDP_FORWARDING=1` enables it). Railway's edge does not support outbound UDP, so command-2 connections will fail to dial there (clean close, no crash). Codespaces and local hosts generally allow it. Mainstream xray-based clients cannot carry UDP over WebSocket reliably, so treat this as experimental.
+- **UDP forwarding (VLESS command 2)**: implemented and **enabled by default** (`UDP_FORWARDING=0` disables it). Required for QUIC (UDP/443 to Google/Meta/etc.), Telegram and game traffic sent by modern xray-based clients.
 - **Multi-worker**: see `gunicorn_config.py`. Sessions, in-memory state and the connection table are per-process, so **keep `workers = 1`** on Railway (memory persistence) and on file-backed hosts unless you move sessions/state to a shared store.
 - **Handshake padding (`HANDSHAKE_PADDING_MAX`)**: the legacy xray `?ed=` WebSocket padding protocol was removed from all modern clients (xray/v2ray/sing-box), so this knob is only meaningful for legacy clients that request `ed`; default `0` (off).
 
@@ -215,7 +215,7 @@ V2Leafy/
 | `LOGIN_RATE_LIMIT` | `5` | Login/setup attempts per minute per IP |
 | `TCP_CONNECT_TIMEOUT` / `TCP_FIRST_BYTE_TIMEOUT` / `TCP_IDLE_TIMEOUT` | `5` / `10` / `300` | Split connection timeouts (s) |
 | `RELAY_QUEUE_MAX` | `8` | Bounded WS send queue (frames) — caps memory on slow readers |
-| `UDP_FORWARDING` | `0` | Enable experimental VLESS UDP forwarding |
+| `UDP_FORWARDING` | `1` | VLESS UDP forwarding (command 2); `0` disables it |
 | `HANDSHAKE_PADDING_MAX` | `0` | Legacy `ed`-padding support (see constraints) |
 | `QUOTA_RESET_CYCLE` | `none` | `monthly` or `weekly` billing cycles for auto quota resets |
 | `QUOTA_RESET_MONTHLY_DAY` / `QUOTA_RESET_HOUR_UTC` | `1` / `0` | Monthly reset day-of-month and hour (UTC) |

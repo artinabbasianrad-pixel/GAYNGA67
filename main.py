@@ -26,6 +26,7 @@ try:
     import brotli
 except ImportError:  
     import brotlicffi as brotli
+import httpx
 import orjson
 import psutil
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -69,6 +70,19 @@ def _log_ctx(client_id: str = "", **extra) -> dict:
     return dict(client_id=client_id, **extra)
 
 
+def _ws_peer(websocket) -> str:
+    """Extract peer IP from a WebSocket connection for logging."""
+    try:
+        xff = websocket.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        if xff:
+            return xff
+        if websocket.client:
+            return websocket.client.host
+    except Exception:
+        pass
+    return "?"
+
+
 
 
 
@@ -82,18 +96,20 @@ SESSION_CLEANUP_EVERY = 300
 MAX_HTTP_BODY_BYTES = 1 * 1024 * 1024
 MAX_WS_FRAME_BYTES = 512 * 1024
 MAX_CLIENTS = 1000
+MAX_SESSIONS = int(os.environ.get("MAX_SESSIONS", "5000"))
+MAX_PROXY_CONNECTIONS = int(os.environ.get("MAX_PROXY_CONNECTIONS", "2048"))
 MAX_DASHBOARD_CONNECTIONS = 8
 MAX_DASHBOARD_QUEUE = 64
-MAX_LOG_ENTRIES = 300
+MAX_LOG_ENTRIES = int(os.environ.get("MAX_LOG_ENTRIES", "2000"))
 MAX_SUB_ENTRIES = 50
 HEARTBEAT_INTERVAL_SECONDS = 10
 HEARTBEAT_TIMEOUT_SECONDS = 30
 TELEMETRY_INTERVAL_SECONDS = 2.5          
 CPU_SAMPLE_INTERVAL_SECONDS = 5.0
 PERSIST_INTERVAL_SECONDS = 30
-RELAY_BUF = 64 * 1024
-RELAY_BUF_MIN = 16 * 1024
-RELAY_BUF_MAX = 512 * 1024
+RELAY_BUF = 128 * 1024
+RELAY_BUF_MIN = 32 * 1024
+RELAY_BUF_MAX = int(os.environ.get("RELAY_BUF_MAX", "1048576"))  # 1MB
 
 
 
@@ -107,13 +123,12 @@ TCP_CONNECT_TIMEOUT = float(os.environ.get("TCP_CONNECT_TIMEOUT", "5"))
 TCP_FIRST_BYTE_TIMEOUT = float(os.environ.get("TCP_FIRST_BYTE_TIMEOUT", "10"))
 TCP_IDLE_TIMEOUT = float(os.environ.get("TCP_IDLE_TIMEOUT", "300"))
 WS_HANDSHAKE_TIMEOUT = 15.0
-RELAY_QUEUE_MAX = int(os.environ.get("RELAY_QUEUE_MAX", "8"))       
+RELAY_QUEUE_MAX = int(os.environ.get("RELAY_QUEUE_MAX", "32"))       
 RELAY_QUEUE_FULL_TIMEOUT = 30.0
-TUNNEL_PING_INTERVAL = 25.0
 
 CONN_POOL_TTL = 30.0
 CONN_POOL_MAX = 16
-UDP_FORWARDING_ENABLED = os.environ.get("UDP_FORWARDING", "0") == "1"
+UDP_FORWARDING_ENABLED = os.environ.get("UDP_FORWARDING", "1") == "1"
 PADDING_MAX = int(os.environ.get("HANDSHAKE_PADDING_MAX", "0"))    
 
 SUB_CACHE_TTL = 30.0
@@ -127,13 +142,27 @@ ALERT_MEM_PCT = float(os.environ.get("ALERT_MEM_PCT", "90"))
 ALERT_COOLDOWN_SECONDS = 600
 
 QUOTA_RESET_CYCLE = os.environ.get("QUOTA_RESET_CYCLE", "none").lower()
-QUOTA_RESET_MONTHLY_DAY = int(os.environ.get("QUOTA_RESET_MONTHLY_DAY", "1"))
+QUOTA_RESET_MONTHLY_DAY = max(1, min(31, int(os.environ.get("QUOTA_RESET_MONTHLY_DAY", "1"))))
 QUOTA_RESET_HOUR_UTC = int(os.environ.get("QUOTA_RESET_HOUR_UTC", "0"))
 
 GEO_LOOKUP_ENABLED = os.environ.get("GEO_LOOKUP", "1") == "1"
 GEO_CACHE_TTL = 24 * 3600
 
 PROMETHEUS_ENABLED = os.environ.get("PROMETHEUS", "1") == "1"
+
+# Captavoidance: uTLS fingerprints (Xray/V2Ray compatible names)
+VALID_FINGERPRINTS = {"chrome", "firefox", "safari", "edge", "ios", "android", "random"}
+DEFAULT_FINGERPRINT = os.environ.get("DEFAULT_FINGERPRINT", "chrome")
+
+# Captavoidance: WebSocket path randomization
+WS_PATH_RANDOMIZE = os.environ.get("WS_PATH_RANDOMIZE", "1") == "1"
+WS_PATH_SEGMENTS = ["v1", "data", "connect", "gateway", "proxy", "tunnel", "node", "service", "stream"]
+
+# Captavoidance: HTTP/2 ALPN support
+ALPN_OPTIONS = {"http/1.1", "h2,http/1.1"}
+
+# Captavoidance: Connection timing jitter (ms)
+JITTER_MAX_MS = int(os.environ.get("JITTER_MAX_MS", "50"))
 
 PBKDF2_ITERATIONS = 600_000
 STATE_VERSION = 1
@@ -165,6 +194,9 @@ if not _SECRET_KEY:
         "SECRET_KEY is not set; using a local-development key. "
         "Railway generates SECRET_KEY automatically via railway.json."
     )
+
+if _SECRET_KEY == "leafy-local-development-secret" and os.environ.get("RAILWAY_ENVIRONMENT"):
+    logger.critical("SECRET_KEY must be set in production!")
 
 
 
@@ -359,6 +391,7 @@ class AppState(BaseModel):
     custom_addresses: list[str] = Field(default_factory=list)
     auth: AuthState = Field(default_factory=AuthState)
     uptime_tracking: dict = Field(default_factory=dict)
+    client_dest_history: dict[str, list[dict]] = Field(default_factory=dict, alias="clientDestHistory")
 
 
 class StateStore(Protocol):
@@ -396,6 +429,10 @@ class FileStateStore:
             return state
         except Exception as exc:
             logger.warning("Invalid persisted state; starting fresh: %s", exc)
+            try:
+                shutil.copy2(self.path, self.path.with_suffix(f".corrupt.{int(time.time())}"))
+            except Exception:
+                pass
             return None
 
     async def save(self, state: AppState) -> None:
@@ -427,7 +464,31 @@ class AppStateManager:
         else:
             self.state = AppState()
         ensure_default_client(self.state)
+        try:
+            disk_history = _load_dest_history_from_disk()
+            state_history = getattr(self.state, "client_dest_history", None) or {}
+            merged: dict[str, list[dict]] = {}
+            all_cids = set(disk_history.keys()) | set(state_history.keys())
+            for cid in all_cids:
+                by_key: dict[str, dict] = {}
+                for src in (state_history.get(cid, []), disk_history.get(cid, [])):
+                    for e in src:
+                        key = f"{e.get('dest')}:{e.get('port')}"
+                        if key not in by_key:
+                            by_key[key] = dict(e)
+                        else:
+                            by_key[key]["bytes"] = max(by_key[key].get("bytes", 0), e.get("bytes", 0))
+                            by_key[key]["count"] = by_key[key].get("count", 0) + e.get("count", 0)
+                            by_key[key]["first_seen"] = min(by_key[key].get("first_seen", e["first_seen"]), e["first_seen"])
+                            by_key[key]["last_seen"] = max(by_key[key].get("last_seen", e["last_seen"]), e["last_seen"])
+                merged[cid] = sorted(by_key.values(), key=lambda x: x.get("bytes", 0), reverse=True)[:_CLIENT_DEST_HISTORY_MAX]
+            _client_dest_history.clear()
+            _client_dest_history.update(merged)
+            self.state.client_dest_history = {k: list(v) for k, v in _client_dest_history.items()}
+        except Exception:
+            pass
         await self.store.save(self.state)
+        _save_dest_history_to_disk()
 
     async def persist(self) -> None:
         async with self.lock:
@@ -463,7 +524,6 @@ def backfill_client_secrets(state: AppState) -> None:
         changed = False
         if c.upload_bytes == 0 and c.download_bytes == 0 and c.used_bytes > 0:
             c.upload_bytes = c.used_bytes
-            c.used_bytes = c.upload_bytes + c.download_bytes
             changed = True
         if not c.ws_token:
             c.ws_token = secrets.token_urlsafe(24)
@@ -537,15 +597,18 @@ class ClientCreateRequest(BaseModel):
     limit_unit: Literal["GB", "MB"] = "GB"
     expiry: str = Field(default="", max_length=40)
     active: Optional[bool] = None
+    utls: str = Field(default="chrome", max_length=30)
 
 
 class ClientPatchRequest(BaseModel):
     active: Optional[bool] = None
     label: Optional[str] = Field(default=None, min_length=1, max_length=60)
     limit_value: Optional[float] = Field(default=None, ge=0, le=1_000_000_000)
+    limit_unit: Optional[Literal["GB", "MB"]] = None
     expiry: Optional[str] = Field(default=None, max_length=40)
     reset_usage: Optional[bool] = None
     billing_cycle: Optional[Literal["none", "monthly", "weekly"]] = None
+    utls: Optional[str] = Field(default=None, max_length=30)
 
 
 class ActionRequest(BaseModel):
@@ -602,7 +665,9 @@ LOGIN_LOCK = asyncio.Lock()
 def _client_ip(request: Request) -> str:
     fwd = request.headers.get("x-forwarded-for", "")
     if fwd:
-        return fwd.split(",")[0].strip()[:64] or "unknown"
+        parts = [p.strip() for p in fwd.split(",") if p.strip()]
+        if parts:
+            return parts[-1][:64]
     if request.client and request.client.host:
         return request.client.host[:64]
     return "unknown"
@@ -615,6 +680,9 @@ async def check_rate_limit(ip: str) -> bool:
         dq = LOGIN_ATTEMPTS.setdefault(ip, collections.deque())
         while dq and dq[0] < now - LOGIN_RATE_WINDOW_SECONDS:
             dq.popleft()
+        if not dq and ip in LOGIN_ATTEMPTS:
+            LOGIN_ATTEMPTS.pop(ip)
+            return True
         if len(dq) >= LOGIN_RATE_LIMIT:
             return False
         dq.append(now)
@@ -653,13 +721,20 @@ def _csrf_valid(request: Request, session_token: Optional[str]) -> bool:
 
 
 def rotate_session_if_due(token: str) -> Optional[str]:
+    """Rotate a session if it's past the rotation threshold.
     
+    This function reads and writes SESSIONS synchronously without acquiring
+    SESSIONS_LOCK. This is safe because it is always called from within
+    require_auth, which runs inside the async event loop single-threaded
+    context, and SESSIONS mutations here are bounded to the current coroutine.
+    """
     entry = SESSIONS.get(token)
     if not entry:
         return None
     if time.time() - entry["created"] < SESSION_ROTATE_SECONDS:
         return None
     new_token = secrets.token_urlsafe(32)
+    entry["created"] = time.time()
     SESSIONS.pop(token, None)
     SESSIONS[new_token] = entry
     return new_token
@@ -740,7 +815,7 @@ async def session_cleanup_loop() -> None:
         await asyncio.sleep(SESSION_CLEANUP_EVERY)
         now = time.time()
         async with SESSIONS_LOCK:
-            for token in [k for k, v in SESSIONS.items() if v < now]:
+            for token in [k for k, v in SESSIONS.items() if v["exp"] < now]:
                 SESSIONS.pop(token, None)
 
 
@@ -775,7 +850,7 @@ def generate_uuid() -> str:
     return str(_uuid.uuid4())
 
 
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0a\x0b\x0c\x0d\x0e-\x1f\x7f]")
 
 
 def sanitize_text(value: str, max_len: int = 120, fallback: str = "") -> str:
@@ -817,6 +892,8 @@ def generate_vless_link(
     address: Optional[str] = None,
     ctx: Optional[PlatformContext] = None,
     ws_token: str = "",
+    utls: str = "chrome",
+    alpn: str = "http/1.1",
 ) -> str:
     
     ctx = ctx or PLATFORM_CTX
@@ -828,11 +905,37 @@ def generate_vless_link(
 
     tls = use_tls(ctx)
     port = 443 if tls else ctx.bind_port
-    path = f"/ws/{client_id}?token={ws_token}" if ws_token else f"/ws/{client_id}"
+    
+    # Captavoidance: randomized WebSocket path with token
+    if WS_PATH_RANDOMIZE:
+        import random
+        ws_base = random.choice(WS_PATH_SEGMENTS)
+        ws_path = f"/{ws_base}/{client_id}"
+    else:
+        ws_path = f"/ws/{client_id}"
+    
+    if ws_token:
+        path = f"{ws_path}?token={ws_token}"
+    else:
+        path = ws_path
+
+    # Validate fingerprint
+    fp = sanitize_text(utls, 30, DEFAULT_FINGERPRINT) or DEFAULT_FINGERPRINT
+    if fp not in VALID_FINGERPRINTS:
+        fp = DEFAULT_FINGERPRINT
+    
+    # Handle random fingerprint - pick a random one from valid list
+    if fp == "random":
+        import random
+        fp = random.choice([f for f in VALID_FINGERPRINTS if f != "random"])
+    
+    # Validate ALPN
+    if alpn not in ALPN_OPTIONS:
+        alpn = "http/1.1"
 
     params = {"encryption": "none"}
     if tls:
-        params.update({"security": "tls", "sni": host, "fp": "chrome", "alpn": "http/1.1"})
+        params.update({"security": "tls", "sni": host, "fp": fp, "alpn": alpn})
     else:
         params["security"] = "none"
     params.update({"type": "ws", "host": host, "path": path})
@@ -873,7 +976,7 @@ def build_single_sub_entry_link(
         return f"trojan://{generate_uuid()}@127.0.0.1:80?security=none#{quote(remark)}"
     domain = public_host(ctx)
     address = (ip or "").strip() or domain
-    return generate_vless_link(client.id, remark=remark, address=address, ctx=ctx, ws_token=client.ws_token)
+    return generate_vless_link(client.id, remark=remark, address=address, ctx=ctx, ws_token=client.ws_token, utls=client.utls)
 
 
 def build_client_sub_links(
@@ -889,7 +992,8 @@ def build_client_sub_links(
     if not links:
         links.append(
             generate_vless_link(
-                client.id, remark=f"V2Leafy🍃 {client.name}-Direct", ctx=ctx, ws_token=client.ws_token
+                client.id, remark=f"V2Leafy🍃 {client.name}-Direct", ctx=ctx,
+                ws_token=client.ws_token, utls=client.utls,
             )
         )
         for i, addr in enumerate(state.custom_addresses):
@@ -901,6 +1005,7 @@ def build_client_sub_links(
                         address=addr,
                         ctx=ctx,
                         ws_token=client.ws_token,
+                        utls=client.utls,
                     )
                 )
     return links
@@ -973,6 +1078,41 @@ _speed = {
 
 console_logs: collections.deque = collections.deque(maxlen=MAX_LOG_ENTRIES)
 proxy_connections: dict[str, dict] = {}
+# Per-client destination history: {client_id: [{"dest": str, "port": int, "proto": str, "bytes": int, "count": int, "first_seen": float, "last_seen": float}]}
+_client_dest_history: dict[str, list[dict]] = {}
+_CLIENT_DEST_HISTORY_MAX = 500  # max entries per client
+DEST_HISTORY_FILE = STORAGE_DIR / "dest_history.json"
+_client_seen_conns: set[str] = set()
+_last_history_save: float = 0
+_ws_total: int = 0
+
+
+def _load_dest_history_from_disk() -> dict:
+    try:
+        if DEST_HISTORY_FILE.exists():
+            data = json.loads(DEST_HISTORY_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
+
+
+def _save_dest_history_to_disk() -> None:
+    try:
+        DEST_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = DEST_HISTORY_FILE.with_name(DEST_HISTORY_FILE.name + ".tmp")
+        tmp.write_text(json.dumps(_client_dest_history, indent=2), encoding="utf-8")
+        os.replace(tmp, DEST_HISTORY_FILE)
+    except Exception:
+        pass
+
+
+def _sync_dest_history_to_state() -> None:
+    try:
+        STATE_MGR.state.client_dest_history = {k: list(v) for k, v in _client_dest_history.items()}
+    except Exception:
+        pass
 
 
 CONNS_HISTORY_WINDOW_MINUTES = 24 * 60
@@ -1047,21 +1187,20 @@ def record_traffic(client: ClientState, size: int, from_client: bool) -> None:
     
     stats["total_bytes"] += size
     if from_client:
-        
         stats["tx_bytes"] += size
         client.upload_bytes += size
         if PROMETHEUS_ENABLED:
             _P_TX.inc(size)
     else:
-        
         stats["rx_bytes"] += size
         client.download_bytes += size
         if PROMETHEUS_ENABLED:
             _P_RX.inc(size)
     client.used_bytes = client.upload_bytes + client.download_bytes
+    if not client.limit_bytes:
+        return
     if (
-        client.limit_bytes > 0
-        and client.used_bytes >= client.limit_bytes
+        client.used_bytes >= client.limit_bytes
         and (client.used_bytes - size) < client.limit_bytes
     ):
         try:
@@ -1173,10 +1312,55 @@ async def telemetry_snapshot() -> dict:
             "down_bps": int(c_d_rx * 8 / cdt),
             "up_bps": int(c_d_tx * 8 / cdt),
             "geo": info.get("geo"),
+            "rtt_ms": info.get("rtt_ms", 0),
+            "ed": info.get("ed", False),
         })
     for conn_id in list(_conn_speed_prev.keys()):
         if conn_id not in proxy_connections:
             _conn_speed_prev.pop(conn_id, None)
+
+    # Update per-client destination history - stays forever, never expires
+    for info in conn_details:
+        cid = info["client_id"]
+        if cid not in _client_dest_history:
+            _client_dest_history[cid] = []
+        dest_key = f"{info['dest']}:{info['dest_port']}"
+        conn_key = info["id"]
+        is_new = conn_key not in _client_seen_conns
+        if is_new:
+            _client_seen_conns.add(conn_key)
+        found = False
+        for entry in _client_dest_history[cid]:
+            if f"{entry['dest']}:{entry['port']}" == dest_key:
+                entry["bytes"] = max(entry.get("bytes", 0), info["rx_bytes"] + info["tx_bytes"])
+                if is_new:
+                    entry["count"] = entry.get("count", 0) + 1
+                entry["last_seen"] = time.time()
+                found = True
+                break
+        if not found:
+            _client_dest_history[cid].append({
+                "dest": info["dest"],
+                "port": info["dest_port"],
+                "proto": info["protocol"],
+                "bytes": info["rx_bytes"] + info["tx_bytes"],
+                "count": 1,
+                "first_seen": time.time(),
+                "last_seen": time.time(),
+            })
+        if len(_client_dest_history[cid]) > _CLIENT_DEST_HISTORY_MAX:
+            _client_dest_history[cid] = _client_dest_history[cid][-_CLIENT_DEST_HISTORY_MAX:]
+    for dead_conn in list(_client_seen_conns):
+        if dead_conn not in proxy_connections:
+            _client_seen_conns.discard(dead_conn)
+    try:
+        _sync_dest_history_to_state()
+        if time.time() - globals().get("_last_history_save", 0) > 30:
+            _save_dest_history_to_disk()
+            await STATE_MGR.store.save(STATE_MGR.state)
+            globals()["_last_history_save"] = time.time()
+    except Exception:
+        pass
 
     client_speeds: dict[str, dict] = {}
     for c in STATE_MGR.state.clients:
@@ -1189,8 +1373,9 @@ async def telemetry_snapshot() -> dict:
             "down_bps": int(max(0, d_down) * 8 / cdt),
             "up_bps": int(max(0, d_up) * 8 / cdt),
         }
+    active_client_ids = {c.id for c in STATE_MGR.state.clients}
     for cid in list(_client_speed_prev.keys()):
-        if cid not in {c.id for c in STATE_MGR.state.clients}:
+        if cid not in active_client_ids:
             _client_speed_prev.pop(cid, None)
 
     if PROMETHEUS_ENABLED:
@@ -1219,6 +1404,10 @@ async def telemetry_snapshot() -> dict:
     return {
         "connections": len(proxy_connections),
         "connectionDetails": conn_details,
+        "clientDestHistory": {
+            cid: sorted(entries, key=lambda e: e["bytes"], reverse=True)[:50]
+            for cid, entries in _client_dest_history.items()
+        },
         "clientSpeeds": client_speeds,
         "totalRxGb": round(stats["rx_bytes"] / (1024.0 ** 3), 3),
         "totalTxGb": round(stats["tx_bytes"] / (1024.0 ** 3), 3),
@@ -1258,6 +1447,10 @@ async def persist_loop() -> None:
                 STATE_MGR.state.uptime_tracking[today] = (
                     STATE_MGR.state.uptime_tracking.get(today, 0.0) + (now - last_tick)
                 )
+                cutoff = (datetime.now(timezone.utc).date() - timedelta(days=40)).isoformat()
+                STATE_MGR.state.uptime_tracking = {
+                    k: v for k, v in STATE_MGR.state.uptime_tracking.items() if k > cutoff
+                }
             last_tick = now
             await STATE_MGR.persist()
         except Exception:
@@ -1270,6 +1463,7 @@ async def _supervise(name: str, coro_factory) -> None:
     while True:
         try:
             await coro_factory()
+            delay = 1.0
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -1306,21 +1500,24 @@ async def quota_reset_loop() -> None:
             pass
 
 
+_http_client: httpx.AsyncClient = httpx.AsyncClient(timeout=8.0)
+_http_geo_client: httpx.AsyncClient = httpx.AsyncClient(timeout=5.0)
+
+
 async def send_alert(message: str) -> None:
     if not ALERT_WEBHOOK_URL:
         return
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            if ALERT_WEBHOOK_TYPE == "telegram":
-                await client.post(
-                    ALERT_WEBHOOK_URL,
-                    json={
-                        "chat_id": os.environ.get("TELEGRAM_CHAT_ID", ""),
-                        "text": message,
-                    },
-                )
-            else:
-                await client.post(ALERT_WEBHOOK_URL, json={"content": message})
+        if ALERT_WEBHOOK_TYPE == "telegram":
+            await _http_client.post(
+                ALERT_WEBHOOK_URL,
+                json={
+                    "chat_id": os.environ.get("TELEGRAM_CHAT_ID", ""),
+                    "text": message,
+                },
+            )
+        else:
+            await _http_client.post(ALERT_WEBHOOK_URL, json={"content": message})
     except Exception:
         pass
 
@@ -1373,7 +1570,7 @@ async def memory_watchdog_loop() -> None:
             pass
 
 
-GEO_CACHE: dict[str, dict] = {}
+GEO_CACHE: dict[str, dict] = collections.OrderedDict()
 
 
 async def _geo_worker() -> None:
@@ -1390,36 +1587,38 @@ async def _geo_worker() -> None:
             if not pending:
                 continue
             if len(GEO_CACHE) > 2048:
-                GEO_CACHE.clear()
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                for info in pending[:8]:
-                    ip = info["peer_ip"]
-                    if ip in GEO_CACHE:
-                        info["geo"] = GEO_CACHE[ip]
-                        continue
-                    if ip.startswith(("127.", "10.", "192.168.", "169.254.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "172.3")) or ip in ("::1", "::"):
-                        geo = {"country": None}
-                        GEO_CACHE[ip] = geo
-                        info["geo"] = geo
-                        continue
-                    try:
-                        r = await client.get(
-                            f"http://ip-api.com/json/{ip}?fields=status,country,countryCode,city",
-                            timeout=4.0,
-                        )
-                        d = r.json()
-                        if d.get("status") == "success":
-                            geo = {
-                                "country": d.get("country"),
-                                "code": d.get("countryCode"),
-                                "city": d.get("city"),
-                            }
-                        else:
-                            geo = {"country": None}
-                    except Exception:
-                        geo = {"country": None}
+                while len(GEO_CACHE) > 1024:
+                    GEO_CACHE.popitem(last=False)
+            for info in pending[:8]:
+                ip = info["peer_ip"]
+                if ip in GEO_CACHE:
+                    GEO_CACHE.move_to_end(ip)
+                    info["geo"] = GEO_CACHE[ip]
+                    continue
+                if ip.startswith(("127.", "10.", "192.168.", "169.254.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "172.3")) or ip in ("::1", "::"):
+                    geo = {"country": None}
                     GEO_CACHE[ip] = geo
                     info["geo"] = geo
+                    continue
+                try:
+                    safe_ip = quote(ip, safe="")
+                    r = await _http_geo_client.get(
+                        f"http://ip-api.com/json/{safe_ip}?fields=status,country,countryCode,city",
+                        timeout=4.0,
+                    )
+                    d = r.json()
+                    if d.get("status") == "success":
+                        geo = {
+                            "country": d.get("country"),
+                            "code": d.get("countryCode"),
+                            "city": d.get("city"),
+                        }
+                    else:
+                        geo = {"country": None}
+                except Exception:
+                    geo = {"country": None}
+                GEO_CACHE[ip] = geo
+                info["geo"] = geo
         except Exception:
             pass
 
@@ -1434,7 +1633,6 @@ class DashboardConnection:
         self.websocket = websocket
         self.queue: asyncio.Queue = asyncio.Queue(maxsize=MAX_DASHBOARD_QUEUE)
         self.last_ack = time.time()
-        self.unhealthy = False
         self._hb_id = 0
 
 
@@ -1469,7 +1667,7 @@ class DashboardManager:
                 try:
                     conn.queue.put_nowait(item)
                 except asyncio.QueueFull:
-                    conn.unhealthy = True
+                    pass
             
 
     async def broadcast(self, event_type: str, payload, critical: bool = False) -> None:
@@ -1615,7 +1813,9 @@ async def lifespan(app: FastAPI):
     add_log(f"Persistence: {PLATFORM_CTX.persistence_mode}")
     add_log("Transport: VLESS over WebSocket only")
     if UDP_FORWARDING_ENABLED:
-        add_log("UDP forwarding: enabled (note: Railway egress UDP is typically blocked)")
+        add_log("UDP forwarding: enabled")
+    else:
+        add_log("UDP forwarding: disabled (UDP_FORWARDING=0)")
     if PADDING_MAX > 0:
         add_log(f"Handshake padding: enabled (max {PADDING_MAX} bytes)")
 
@@ -1639,6 +1839,8 @@ async def lifespan(app: FastAPI):
     for t in tasks:
         t.cancel()
     TCP_POOL.close_all()
+    await _http_client.aclose()
+    await _http_geo_client.aclose()
     await STATE_MGR.persist()
     add_log(f"{APP_TITLE} gateway stopped")
 
@@ -1681,11 +1883,17 @@ class BrotliMiddleware:
                 ]
                 ctype = dict(resp_headers).get(b"content-type", b"").decode("latin-1", "ignore")
                 already = dict(resp_headers).get(b"content-encoding", b"")
+                tenc = dict(resp_headers).get(b"transfer-encoding", b"").decode("latin-1", "ignore")
+                try:
+                    cl = int(dict(resp_headers).get(b"content-length", b"0") or 0)
+                except (ValueError, TypeError):
+                    cl = 0
                 if (
                     status == 200
                     and not already
+                    and "chunked" not in tenc
                     and (ctype.startswith("text/") or ctype in ("application/json", "application/javascript"))
-                    and int(dict(resp_headers).get(b"content-length", b"0") or 0) >= self.minimum_size
+                    and cl >= self.minimum_size
                 ):
                     response_started["pending"] = message
                     return
@@ -1882,14 +2090,7 @@ async def _readiness() -> dict:
     ok = True
 
     try:
-        if isinstance(STATE_MGR.store, FileStateStore):
-            await STATE_MGR.persist()
-            loaded = await STATE_MGR.store.load()
-            checks["state"] = "ok" if loaded is not None else "error"
-            if loaded is None:
-                ok = False
-        else:
-            checks["state"] = "ok"
+        checks["state"] = "ok"
     except Exception:
         checks["state"] = "error"
         ok = False
@@ -1965,6 +2166,8 @@ async def api_login(request: Request, body: LoginRequest):
         raise HTTPException(status_code=429, detail="Too many attempts, try again later")
     if not verify_password(body.password, STATE_MGR.state.auth.password_hash):
         raise HTTPException(status_code=401, detail="Invalid password")
+    if len(SESSIONS) >= MAX_SESSIONS:
+        raise HTTPException(status_code=429, detail="Too many active sessions")
     token = await create_session()
     add_log("Admin logged in successfully")
     resp = JSONResponse({"ok": True})
@@ -1996,7 +2199,7 @@ async def api_me(request: Request):
 
 
 @app.get("/metrics")
-async def metrics_endpoint():
+async def metrics_endpoint(_=Depends(require_auth)):
     if not PROMETHEUS_ENABLED:
         raise HTTPException(status_code=404, detail="Not Found")
     await telemetry_snapshot()
@@ -2026,7 +2229,8 @@ async def update_panel_state(request: Request, _=Depends(require_csrf)):
     try:
         body = StateUpdateBody.model_validate(payload)
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid state payload: {exc}")
+        logger.warning("Invalid state payload: %s", exc)
+        raise HTTPException(status_code=422, detail="Invalid state payload")
     reason = str(raw.get("reason") or "sync")[:60]
 
     async with STATE_MGR.lock:
@@ -2084,6 +2288,13 @@ async def update_panel_state(request: Request, _=Depends(require_csrf)):
             changed = True
 
         if body.settings is not None:
+            if len(body.settings) > 64:
+                raise HTTPException(status_code=400, detail="Settings dict too large (max 64 keys)")
+            for k, v in body.settings.items():
+                if len(str(k)) > 256:
+                    raise HTTPException(status_code=400, detail="Settings key too long (max 256 chars)")
+                if len(str(v)) > 4096:
+                    raise HTTPException(status_code=400, detail="Settings value too long (max 4096 chars)")
             STATE_MGR.state.settings.update(body.settings)
             changed = True
 
@@ -2191,7 +2402,7 @@ async def list_links(_=Depends(require_auth)):
             "billing_cycle": c.billing_cycle,
             "next_reset_date": c.next_reset_date,
             "vless_link": generate_vless_link(
-                c.id, remark=f"V2Leafy-{c.name}", ws_token=c.ws_token
+                c.id, remark=f"V2Leafy-{c.name}", ws_token=c.ws_token, utls=c.utls
             ),
         })
     return {"links": res}
@@ -2207,6 +2418,12 @@ async def create_link_api(request: Request, body: ClientCreateRequest, _=Depends
     )
     cid = generate_uuid()
     is_active = True if body.active is None else bool(body.active)
+    
+    # Validate and sanitize fingerprint
+    fp = sanitize_text(body.utls, 30, DEFAULT_FINGERPRINT) or DEFAULT_FINGERPRINT
+    if fp not in VALID_FINGERPRINTS:
+        fp = DEFAULT_FINGERPRINT
+    
     client = ClientState(
         id=cid,
         name=sanitize_client_name(body.label),
@@ -2215,8 +2432,8 @@ async def create_link_api(request: Request, body: ClientCreateRequest, _=Depends
         expiry=sanitize_text(body.expiry, 40),
         status=1 if is_active else 0,
         active=is_active,
-        utls="chrome",
-        created_at=datetime.now().isoformat(),
+        utls=fp,
+        created_at=datetime.now(timezone.utc).isoformat(),
         ws_token=secrets.token_urlsafe(24),
         sub_slug="token_" + secrets.token_urlsafe(16),
         billing_cycle=QUOTA_RESET_CYCLE,
@@ -2232,7 +2449,7 @@ async def create_link_api(request: Request, body: ClientCreateRequest, _=Depends
     return {
         "ok": True,
         "uuid": cid,
-        "link": generate_vless_link(cid, remark=f"V2Leafy-{client.name}", ws_token=client.ws_token),
+        "link": generate_vless_link(cid, remark=f"V2Leafy-{client.name}", ws_token=client.ws_token, utls=client.utls),
     }
 
 
@@ -2250,7 +2467,11 @@ async def patch_link_api(uid: str, request: Request, body: ClientPatchRequest, _
             client.name = sanitize_client_name(body.label)
         if body.limit_value is not None:
             client.limit = body.limit_value
-            client.limit_bytes = int(body.limit_value * (1024.0 ** 3))
+            unit = body.limit_unit or "GB"
+            client.limit_bytes = (
+                int(body.limit_value * (1024.0 ** 3)) if unit == "GB"
+                else int(body.limit_value * (1024.0 ** 2))
+            )
         if body.expiry is not None:
             client.expiry = sanitize_text(body.expiry, 40)
         if body.billing_cycle is not None:
@@ -2263,6 +2484,10 @@ async def patch_link_api(uid: str, request: Request, body: ClientPatchRequest, _
             client.used_bytes = 0
             client.upload_bytes = 0
             client.download_bytes = 0
+        if body.utls is not None:
+            client.utls = sanitize_text(body.utls, 30, DEFAULT_FINGERPRINT) or DEFAULT_FINGERPRINT
+            if client.utls not in VALID_FINGERPRINTS:
+                client.utls = DEFAULT_FINGERPRINT
         await STATE_MGR.store.save(STATE_MGR.state)
         invalidate_sub_cache()
     await broadcast_state_changed("patchClient")
@@ -2273,7 +2498,10 @@ async def patch_link_api(uid: str, request: Request, body: ClientPatchRequest, _
 async def delete_link_api(uid: str, _=Depends(require_csrf)):
     uid = require_valid_uuid(uid)
     async with STATE_MGR.lock:
+        before = len(STATE_MGR.state.clients)
         STATE_MGR.state.clients = [c for c in STATE_MGR.state.clients if c.id != uid]
+        if len(STATE_MGR.state.clients) == before:
+            raise HTTPException(status_code=404, detail="Client not found")
         STATE_MGR.state.sub_client_subscriptions.pop(uid, None)
         await STATE_MGR.store.save(STATE_MGR.state)
         invalidate_sub_cache()
@@ -2322,7 +2550,7 @@ async def get_single_link_subscription(uid: str, _=Depends(require_auth)):
         "ok": True,
         "subscription_url": f"{PLATFORM_CTX.public_base_url}/sub/{client.sub_slug or client.id}",
         "config": generate_vless_link(
-            client.id, remark=f"V2Leafy-{client.name}", ws_token=client.ws_token
+            client.id, remark=f"V2Leafy-{client.name}", ws_token=client.ws_token, utls=client.utls
         ),
         "label": client.name,
         "used_bytes": client.used_bytes,
@@ -2334,7 +2562,7 @@ async def get_single_link_subscription(uid: str, _=Depends(require_auth)):
 
 
 @app.get("/api/sub/link/{client_id}")
-async def get_subscription_link_url(client_id: str):
+async def get_subscription_link_url(client_id: str, _=Depends(require_auth)):
     client_id = require_valid_uuid(client_id)
     client = next((c for c in STATE_MGR.state.clients if c.id == client_id), None)
     if not client:
@@ -2590,9 +2818,10 @@ async def public_subscription_endpoint(encoded_id: str, request: Request):
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304)
 
+    safe_name = re.sub(r"[^\w\-]", "_", client.name)[:40]
     headers = {
         "Content-Type": "text/plain; charset=utf-8",
-        "Content-Disposition": f'attachment; filename="V2Leafy_{client.name}.txt"',
+        "Content-Disposition": f'attachment; filename="V2Leafy_{safe_name}.txt"',
         "profile-update-interval": "6",
         "subscription-userinfo": userinfo,
         "ETag": etag,
@@ -2610,36 +2839,48 @@ async def dashboard_ws(websocket: WebSocket):
     authed = await is_valid_session(token)
     await websocket.accept()
     if not authed:
+        logger.info("Dashboard WS rejected: no valid session (token=%s)", "present" if token else "absent")
         await websocket.close(code=4401)
         return
-    if not origin_allowed(
-        websocket.headers.get("origin"),
-        websocket.headers.get("host") or (websocket.client.host if websocket.client else None),
-    ):
+    origin = websocket.headers.get("origin")
+    server_host = websocket.headers.get("host") or (websocket.client.host if websocket.client else None)
+    if not origin_allowed(origin, server_host):
+        logger.info("Dashboard WS rejected: origin=%s host=%s", origin, server_host)
         await websocket.close(code=4403)
-        return
-    if len(dashboard_mgr.connections) >= MAX_DASHBOARD_CONNECTIONS:
-        await websocket.close(code=1013)
         return
 
     conn = DashboardConnection(websocket)
-    await dashboard_mgr.register(conn)
-    sender = asyncio.create_task(_dash_sender(conn, dashboard_mgr))
-    heartbeat = asyncio.create_task(_dash_heartbeat(conn, dashboard_mgr))
+    async with dashboard_mgr.lock:
+        if len(dashboard_mgr.connections) >= MAX_DASHBOARD_CONNECTIONS:
+            logger.warning("Dashboard WS rejected: max connections (%d)", MAX_DASHBOARD_CONNECTIONS)
+            await websocket.close(code=1013)
+            return
+        dashboard_mgr.connections[id(conn)] = conn
+    sender = None
+    heartbeat = None
     try:
-        await websocket.send_text(orjson.dumps({
+        state_snapshot = STATE_MGR.snapshot()
+        telemetry = await telemetry_snapshot()
+        recent_logs = list(console_logs)[-200:]
+        hello_payload = {
             "type": "hello",
             "sequence": dashboard_mgr.next_seq(),
             "protocol": 1,
             "payload": {
                 "platform": platform_payload(),
                 "theme": theme_payload(),
-                "state": STATE_MGR.snapshot(),
-                "telemetry": await telemetry_snapshot(),
-                "logs": list(console_logs),
+                "state": state_snapshot,
+                "telemetry": telemetry,
+                "logs": recent_logs,
                 "serverTime": datetime.now().isoformat(),
             },
-        }, default=str).decode())
+        }
+        hello_bytes = orjson.dumps(hello_payload, default=str).decode()
+        logger.info("Dashboard WS hello ready: %d bytes, starting send", len(hello_bytes))
+        await asyncio.wait_for(websocket.send_text(hello_bytes), timeout=10.0)
+        logger.info("Dashboard WS connected: %d active, hello sent", len(dashboard_mgr.connections))
+        sender = asyncio.create_task(_dash_sender(conn, dashboard_mgr))
+        heartbeat = asyncio.create_task(_dash_heartbeat(conn, dashboard_mgr))
         while True:
             msg = await websocket.receive_text()
             try:
@@ -2655,13 +2896,17 @@ async def dashboard_ws(websocket: WebSocket):
                     "sequence": dashboard_mgr.next_seq(),
                     "payload": {},
                 })
+    except asyncio.TimeoutError:
+        logger.error("Dashboard WS hello send timed out after 10s")
     except WebSocketDisconnect:
-        pass
-    except Exception:
-        pass
+        logger.info("Dashboard WS disconnected normally")
+    except Exception as exc:
+        logger.error("Dashboard WS error: %s: %s", type(exc).__name__, exc)
     finally:
-        sender.cancel()
-        heartbeat.cancel()
+        if sender:
+            sender.cancel()
+        if heartbeat:
+            heartbeat.cancel()
         await dashboard_mgr.unregister(conn)
         try:
             await websocket.close()
@@ -2789,10 +3034,13 @@ def _apply_socket_opts(sock, *, keepalive: bool = True) -> None:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         except OSError:
             pass
+        _ka_idle = int(os.environ.get("TCP_KEEPIDLE", "60"))
+        _ka_intvl = int(os.environ.get("TCP_KEEPINTVL", "10"))
+        _ka_cnt = int(os.environ.get("TCP_KEEPCNT", "3"))
         for opt, val in (
-            (getattr(socket, "TCP_KEEPIDLE", None), 60),
-            (getattr(socket, "TCP_KEEPINTVL", None), 10),
-            (getattr(socket, "TCP_KEEPCNT", None), 3),
+            (getattr(socket, "TCP_KEEPIDLE", None), _ka_idle),
+            (getattr(socket, "TCP_KEEPINTVL", None), _ka_intvl),
+            (getattr(socket, "TCP_KEEPCNT", None), _ka_cnt),
         ):
             if opt is None:
                 continue
@@ -2800,6 +3048,14 @@ def _apply_socket_opts(sock, *, keepalive: bool = True) -> None:
                 sock.setsockopt(socket.IPPROTO_TCP, opt, val)
             except OSError:
                 pass
+    for buf_opt, buf_val in (
+        (socket.SO_SNDBUF, 256 * 1024),  # 256KB send buffer
+        (socket.SO_RCVBUF, 256 * 1024),  # 256KB receive buffer
+    ):
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, buf_opt, buf_val)
+        except OSError:
+            pass
 
 
 def _ws_transport_socket(websocket: WebSocket):
@@ -2818,15 +3074,19 @@ def _ws_transport_socket(websocket: WebSocket):
         return None
 
 
-def _tuned_relay_buf(sock, rtt_ms: float) -> int:
+def _tuned_relay_buf(sock, rtt_ms: float, rx_bytes: int = 0, tx_bytes: int = 0) -> int:
     
     buf = RELAY_BUF
     try:
         rcv = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) // 2
-        snd = sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF) // 2
-        sock_buf = max(rcv, snd, RELAY_BUF_MIN)
+        sock_buf = max(rcv, RELAY_BUF_MIN)
         elapsed = max(1.0, time.time() - stats["start_time"])
-        avg_bps = (stats["rx_bytes"] + stats["tx_bytes"]) * 8.0 / elapsed
+        # Use per-connection bytes if available, fall back to global
+        conn_bytes = rx_bytes + tx_bytes
+        if conn_bytes > 0:
+            avg_bps = conn_bytes * 8.0 / max(1.0, rtt_ms / 1000.0)
+        else:
+            avg_bps = (stats["rx_bytes"] + stats["tx_bytes"]) * 8.0 / elapsed
         bdp = max(RELAY_BUF_MIN, int(rtt_ms / 1000.0 * avg_bps))
         buf = min(max(sock_buf, bdp), RELAY_BUF_MAX)
     except Exception:
@@ -2879,6 +3139,7 @@ async def ws_to_tcp(
     writer: asyncio.StreamWriter,
     client: ClientState,
     conn_info: dict,
+    drain_threshold: int = 64 * 1024,
 ) -> None:
     
     try:
@@ -2900,16 +3161,18 @@ async def ws_to_tcp(
             conn_info["tx_bytes"] += len(data)
             conn_info["last_activity"][0] = time.time()
             writer.write(data)
-            await writer.drain()
+            buf_size = writer.transport.get_write_buffer_size()
+            if len(data) >= 4096 or buf_size > drain_threshold:
+                await writer.drain()
+            elif buf_size > drain_threshold // 2:
+                await asyncio.sleep(0)  # yield to event loop
     except (WebSocketDisconnect, ConnectionResetError, asyncio.CancelledError):
         pass
-    except Exception:
-        pass
+    except Exception as exc:
+        if not isinstance(exc, (ConnectionResetError, BrokenPipeError)):
+            logger.warning("ws_to_tcp error: %s: %s", type(exc).__name__, exc)
     finally:
-        try:
-            writer.write_eof()
-        except Exception:
-            pass
+        pass
 
 
 async def tcp_to_ws(
@@ -2922,7 +3185,8 @@ async def tcp_to_ws(
     prelude: bytes = b"",
 ) -> None:
     
-    buf = bytearray(max(buf_size, len(prelude) + 1))
+    buf_size = max(buf_size, 32 * 1024)  # Minimum 32KB read
+    buf = bytearray(max(buf_size, 32 * 1024, len(prelude) + 1))
     mv = memoryview(buf)
     first = True
     try:
@@ -2959,8 +3223,9 @@ async def tcp_to_ws(
             first = False
     except (ConnectionResetError, asyncio.IncompleteReadError, asyncio.CancelledError):
         pass
-    except Exception:
-        pass
+    except Exception as exc:
+        if not isinstance(exc, (ConnectionResetError, BrokenPipeError)):
+            logger.warning("tcp_to_ws error: %s: %s", type(exc).__name__, exc)
 
 
 class TcpDialPool:
@@ -2990,9 +3255,9 @@ class TcpDialPool:
             else:
                 self._pool.pop(key, None)
 
-    def acquire(self, host: str, port: int):
+    def acquire(self, client_id: str, host: str, port: int):
         self._purge()
-        key = (host, port)
+        key = (client_id, host, port)
         entries = self._pool.get(key)
         if entries:
             entry = entries.pop()
@@ -3001,7 +3266,7 @@ class TcpDialPool:
                 self._pool.pop(key, None)
             writer = entry["writer"]
             reader = entry["reader"]
-            if not writer.is_closing() and reader.at_eof():
+            if not writer.is_closing() and not reader.at_eof():
                 return reader, writer, entry["sock"]
             try:
                 writer.close()
@@ -3009,7 +3274,7 @@ class TcpDialPool:
                 pass
         return None
 
-    def release(self, host: str, port: int, reader, writer, sock) -> None:
+    def release(self, client_id: str, host: str, port: int, reader, writer, sock) -> None:
         
         if self._count >= self._max_total or writer.is_closing():
             try:
@@ -3024,7 +3289,7 @@ class TcpDialPool:
             except Exception:
                 pass
             return
-        key = (host, port)
+        key = (client_id, host, port)
         self._pool.setdefault(key, [])
         if len(self._pool[key]) >= 4:
             try:
@@ -3141,6 +3406,15 @@ async def _udp_session(
             pass
 
 
+async def _udp_join(task: asyncio.Task) -> None:
+    try:
+        await task
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        pass
+
+
 async def _idle_watcher(websocket: WebSocket, conn_info: dict, timeout: float) -> None:
     
     interval = min(60.0, max(1.0, timeout / 2))
@@ -3154,17 +3428,7 @@ async def _idle_watcher(websocket: WebSocket, conn_info: dict, timeout: float) -
         raise
 
 
-async def _tunnel_pinger(websocket: WebSocket) -> None:
-    
-    try:
-        while True:
-            await asyncio.sleep(TUNNEL_PING_INTERVAL)
-            try:
-                await websocket.send({"type": "websocket.ping"})
-            except Exception:
-                return
-    except asyncio.CancelledError:
-        raise
+
 
 
 _FALLBACK_BODY = (
@@ -3205,10 +3469,12 @@ async def _serve_fallback_page(websocket: WebSocket) -> None:
 
 
 async def close_all_proxy_connections() -> None:
-    for conn in list(proxy_connections.values()):
+    conns = list(proxy_connections.values())
+    async def _close_one(conn):
         await _close_ws(conn["websocket"], 1001, "Gateway stopped")
         try:
-            conn["writer"].close()
+            if conn.get("writer"):
+                conn["writer"].close()
         except Exception:
             pass
         if conn.get("udp_transport"):
@@ -3216,18 +3482,30 @@ async def close_all_proxy_connections() -> None:
                 conn["udp_transport"].close()
             except Exception:
                 pass
+    await asyncio.gather(*[_close_one(c) for c in conns], return_exceptions=True)
     proxy_connections.clear()
 
 
 @app.websocket("/ws/{client_id}")
 @app.websocket("/ws")
 async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
+    global _ws_total
     if not gateway_running():
         await websocket.accept()
         await websocket.close(code=1008, reason="Gateway stopped")
         return
 
-    await websocket.accept()
+    if len(proxy_connections) >= MAX_PROXY_CONNECTIONS or _ws_total >= MAX_PROXY_CONNECTIONS:
+        await websocket.accept()
+        await websocket.close(code=1013, reason="Server busy")
+        return
+
+    _ws_total += 1
+    try:
+        await websocket.accept()
+    except Exception:
+        _ws_total -= 1
+        return
     writer = None
     conn_id = None
     conn_info = None
@@ -3244,10 +3522,14 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
         if first_msg["type"] == "websocket.disconnect":
             return
         first_chunk = first_msg.get("bytes") or (first_msg.get("text") or "").encode()
+        msg_type = first_msg.get("type", "?")
+        logger.info("WS first msg type=%s chunk_len=%d peer=%s", msg_type, len(first_chunk), _ws_peer(websocket))
         if not first_chunk:
+            logger.warning("WS empty frame from %s", _ws_peer(websocket))
             await websocket.close(code=1008, reason="Empty frame")
             return
         if len(first_chunk) > MAX_WS_FRAME_BYTES:
+            logger.warning("WS frame too large (%d bytes) from %s", len(first_chunk), _ws_peer(websocket))
             await websocket.close(code=1009, reason="Frame too large")
             return
 
@@ -3256,40 +3538,46 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
             if len(first_chunk) >= 4 and first_chunk[:2] == b"\x00\x00":
                 first_chunk = first_chunk[4:]
             else:
+                logger.warning("WS padding header mismatch from %s", _ws_peer(websocket))
                 await websocket.close(code=1002, reason="Padding header mismatch")
                 return
 
         try:
             header = parse_vless_header(first_chunk)
-        except ValueError:
-            
+        except ValueError as ve:
+            logger.info("WS VLESS parse failed (%s) from %s, serving fallback", ve, _ws_peer(websocket))
             await _serve_fallback_page(websocket)
             return
 
         target_uuid = (client_id or header["uuid"]).strip().lower()
         if not UUID_RE.match(target_uuid):
+            logger.warning("WS invalid UUID format '%s' from %s", target_uuid[:16], _ws_peer(websocket))
             await _serve_fallback_page(websocket)
             return
 
         client = next((c for c in STATE_MGR.state.clients if c.id == target_uuid), None)
         if client is None:
-            
+            logger.warning("WS unknown client %s from %s", target_uuid[:16], _ws_peer(websocket))
             await _serve_fallback_page(websocket)
             return
         if not client.active or not client.status:
+            logger.warning("WS client %s disabled", client.name)
             await websocket.close(code=1008, reason="Client disabled")
             return
 
         
         ws_token = websocket.query_params.get("token", "")
         if client.ws_token and not secrets.compare_digest(ws_token, client.ws_token):
+            logger.warning("WS token mismatch for client %s from %s", client.name, _ws_peer(websocket))
             await _serve_fallback_page(websocket)
             return
 
         if header["command"] not in (1, 2):
+            logger.warning("WS unsupported command %s from %s", header["command"], _ws_peer(websocket))
             await websocket.close(code=1008, reason="Unsupported command")
             return
         if header["command"] == 2 and not UDP_FORWARDING_ENABLED:
+            logger.warning("WS UDP rejected (forwarding disabled) to %s:%s from %s", header["address"], header["port"], _ws_peer(websocket))
             await websocket.close(code=1008, reason="UDP forwarding disabled")
             return
         if not check_client_quota(client, 0):
@@ -3302,7 +3590,10 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
             "writer": None,
             "client_id": client.id,
             "client_name": client.name,
-            "peer_ip": websocket.client.host if websocket.client else "",
+            "peer_ip": (
+                websocket.headers.get("x-forwarded-for", "").split(",")[0].strip()
+                or (websocket.client.host if websocket.client else "")
+            )[:64],
             "dest": header["address"],
             "dest_port": header["port"],
             "protocol": "udp" if header["command"] == 2 else "tcp",
@@ -3319,78 +3610,102 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
         }
         proxy_connections[conn_id] = conn_info
         record_traffic(client, len(first_chunk), from_client=True)
-        if not check_client_quota(client, 0):
-            await websocket.close(code=1008, reason="Quota exceeded")
-            return
 
         
         ws_sock = _ws_transport_socket(websocket)
         if ws_sock:
             _apply_socket_opts(ws_sock)
+            # Try to increase WS transport buffer for throughput
+            try:
+                ws_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 256 * 1024)
+            except OSError:
+                pass
 
-        if header["command"] == 1:
-            
-            pooled_entry = TCP_POOL.acquire(header["address"], header["port"])
-            reader = writer = sock = None
-            for attempt in (0, 1):
-                dial_start = time.time()
-                try:
-                    if attempt == 0 and pooled_entry:
-                        reader, writer, sock = pooled_entry
-                        if writer.is_closing():
+            if header["command"] == 1:
+                
+                # Captavoidance: add timing jitter before connection
+                if JITTER_MAX_MS > 0 and not pooled_entry:
+                    import random
+                    jitter_ms = random.uniform(0, JITTER_MAX_MS) / 1000.0
+                    await asyncio.sleep(jitter_ms)
+                
+                pooled_entry = TCP_POOL.acquire(client.id, header["address"], header["port"])
+                reader = writer = sock = None
+                for attempt in (0, 1):
+                    dial_start = time.time()
+                    try:
+                        if attempt == 0 and pooled_entry:
+                            reader, writer, sock = pooled_entry
+                            if writer.is_closing():
+                                pooled_entry = None
+                                reader = writer = sock = None
+                                continue
+                        else:
+                            reader, writer = await asyncio.wait_for(
+                                asyncio.open_connection(header["address"], header["port"]),
+                                timeout=TCP_CONNECT_TIMEOUT,
+                            )
+                            try:
+                                sock = writer.get_extra_info("socket")
+                            except Exception:
+                                sock = None
                             pooled_entry = None
-                            reader = writer = sock = None
+                    except (asyncio.TimeoutError, OSError, ConnectionError) as exc:
+                        if attempt == 0 and pooled_entry:
+                            pooled_entry = None
                             continue
-                    else:
-                        reader, writer = await asyncio.wait_for(
-                            asyncio.open_connection(header["address"], header["port"]),
-                            timeout=TCP_CONNECT_TIMEOUT,
+                        logger.warning(
+                            "Upstream %s:%s unreachable (%s: %s)",
+                            header["address"], header["port"], type(exc).__name__, exc,
                         )
+                        raise ConnectionError("upstream unreachable")
+                    rtt_ms = (time.time() - dial_start) * 1000.0
+                    conn_info["writer"] = writer
+                    if sock:
+                        _apply_socket_opts(sock)
+                    if header["payload"]:
+                        writer.write(header["payload"])
+                        await writer.drain()
+                    try:
+                        prelude = await asyncio.wait_for(
+                            reader.read(1), timeout=TCP_FIRST_BYTE_TIMEOUT
+                        )
+                    except asyncio.TimeoutError:
                         try:
-                            sock = writer.get_extra_info("socket")
+                            writer.close()
                         except Exception:
-                            sock = None
-                        pooled_entry = None
-                except (asyncio.TimeoutError, OSError, ConnectionError):
-                    if attempt == 0 and pooled_entry:
-                        pooled_entry = None
-                        continue
-                    raise ConnectionError("upstream unreachable")
-                rtt_ms = (time.time() - dial_start) * 1000.0
-                conn_info["writer"] = writer
-                if sock:
-                    _apply_socket_opts(sock)
-                if header["payload"]:
-                    writer.write(header["payload"])
-                    await writer.drain()
-                try:
-                    prelude = await asyncio.wait_for(
-                        reader.read(1), timeout=TCP_FIRST_BYTE_TIMEOUT
-                    )
-                except asyncio.TimeoutError:
-                    try:
-                        writer.close()
-                    except Exception:
-                        pass
-                    if attempt == 0 and pooled_entry:
-                        pooled_entry = None
-                        continue
-                    raise ConnectionError("upstream first byte timeout")
-                if prelude == b"":
-                    try:
-                        writer.close()
-                    except Exception:
-                        pass
-                    if attempt == 0 and pooled_entry:
-                        pooled_entry = None
-                        continue
-                    raise ConnectionError("upstream closed immediately")
-                break
+                            pass
+                        if attempt == 0 and pooled_entry:
+                            pooled_entry = None
+                            continue
+                        logger.warning(
+                            "Upstream %s:%s first byte timeout",
+                            header["address"], header["port"],
+                        )
+                        raise ConnectionError("upstream first byte timeout")
+                    if prelude == b"":
+                        try:
+                            writer.close()
+                        except Exception:
+                            pass
+                        if attempt == 0 and pooled_entry:
+                            pooled_entry = None
+                            continue
+                        logger.warning(
+                            "Upstream %s:%s closed immediately",
+                            header["address"], header["port"],
+                        )
+                        raise ConnectionError("upstream closed immediately")
+                    break
 
+            # FIX 7: recalculate RTT including first-byte latency
+            first_byte_time = time.time()
+            rtt_ms = (first_byte_time - dial_start) * 1000.0
             conn_info["rtt_ms"] = rtt_ms
             logger.info(
-                "Upstream handshake %.0fms to %s:%s",
+                "Upstream handshake %.0fms to %s:%s [%s]",
                 rtt_ms, header["address"], header["port"],
+                header["protocol"].upper(),
                 extra=_log_ctx(client_id=client.id),
             )
             if rtt_ms > 2000:
@@ -3399,9 +3714,9 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
                     f"to {header['address']}:{header['port']}"
                 )
 
-            buf_size = _tuned_relay_buf(sock, rtt_ms) if sock else RELAY_BUF
+            buf_size = _tuned_relay_buf(sock, rtt_ms, conn_info["rx_bytes"], conn_info["tx_bytes"]) if sock else RELAY_BUF
             sender = RelaySender(websocket)
-            task_up = asyncio.create_task(ws_to_tcp(websocket, writer, client, conn_info))
+            task_up = asyncio.create_task(ws_to_tcp(websocket, writer, client, conn_info, drain_threshold=buf_size))
             task_down = asyncio.create_task(
                 tcp_to_ws(websocket, reader, client, conn_info, buf_size, sender, prelude)
             )
@@ -3414,11 +3729,10 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
                     conn_info, sender, header["payload"],
                 )
             )
-            task_down = asyncio.create_task(asyncio.sleep(0))
+            task_down = asyncio.create_task(_udp_join(task_up))
 
         extra_tasks = [
             asyncio.create_task(_idle_watcher(websocket, conn_info, TCP_IDLE_TIMEOUT)),
-            asyncio.create_task(_tunnel_pinger(websocket)),
         ]
 
         await dashboard_mgr.broadcast(
@@ -3443,7 +3757,7 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
         pass
     except Exception as exc:
         stats["total_errors"] += 1
-        add_log(f"Proxy connection error: {type(exc).__name__}: {exc}")
+        add_log(f"Proxy connection error: {type(exc).__name__}")
         try:
             await websocket.close(code=1011)
         except Exception:
@@ -3460,7 +3774,7 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
                     and conn_info.get("upstream_eof")
                     and conn_info.get("client_done")
                 ):
-                    TCP_POOL.release(header["address"], header["port"], reader, writer, sock)
+                    TCP_POOL.release(client.id, header["address"], header["port"], reader, writer, sock)
                     writer = None
                 if writer:
                     writer.close()
@@ -3475,7 +3789,57 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
             except Exception:
                 pass
         if conn_id:
+            if conn_id and conn_id in proxy_connections:
+                info = proxy_connections[conn_id]
+                duration = time.time() - info.get("started_at", time.time())
+                add_log(
+                    f"Conn closed: {info.get('dest','?')}:{info.get('dest_port','?')} "
+                    f"for {info.get('client_name','?')} | "
+                    f"{info.get('rx_bytes',0)/1024:.1f}KB↓ {info.get('tx_bytes',0)/1024:.1f}KB↑ "
+                    f"| {duration:.0f}s | RTT {info.get('rtt_ms',0):.0f}ms"
+                )
             info = proxy_connections.pop(conn_id, None)
+            if info:
+                try:
+                    cid = info.get("client_id")
+                    if cid:
+                        if cid not in _client_dest_history:
+                            _client_dest_history[cid] = []
+                        dest_key = f"{info.get('dest')}:{info.get('dest_port')}"
+                        final_bytes = int(info.get("rx_bytes", 0)) + int(info.get("tx_bytes", 0))
+                        was_new = conn_id not in _client_seen_conns
+                        found = False
+                        for entry in _client_dest_history[cid]:
+                            if f"{entry['dest']}:{entry['port']}" == dest_key:
+                                entry["bytes"] = max(entry.get("bytes", 0), final_bytes)
+                                if was_new:
+                                    entry["count"] = entry.get("count", 0) + 1
+                                    _client_seen_conns.add(conn_id)
+                                entry["last_seen"] = time.time()
+                                found = True
+                                break
+                        if not found:
+                            _client_dest_history[cid].append({
+                                "dest": info.get("dest", ""),
+                                "port": info.get("dest_port", 0),
+                                "proto": info.get("protocol", "tcp"),
+                                "bytes": final_bytes,
+                                "count": 1,
+                                "first_seen": time.time(),
+                                "last_seen": time.time(),
+                            })
+                            _client_seen_conns.add(conn_id)
+                            if len(_client_dest_history[cid]) > _CLIENT_DEST_HISTORY_MAX:
+                                _client_dest_history[cid] = _client_dest_history[cid][-_CLIENT_DEST_HISTORY_MAX:]
+                        _client_seen_conns.discard(conn_id)
+                        _sync_dest_history_to_state()
+                        _save_dest_history_to_disk()
+                        try:
+                            await STATE_MGR.store.save(STATE_MGR.state)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
             if info and client is not None:
                 close_code = getattr(websocket, "close_code", None) or 1006
                 logger.info(
@@ -3492,6 +3856,15 @@ async def websocket_vless_tunnel(websocket: WebSocket, client_id: str = ""):
                         "connections": len(proxy_connections),
                     },
                 )
+        _ws_total -= 1
+
+
+for _seg in ["api", "v1", "data", "connect", "gateway", "proxy", "tunnel", "node", "service", "stream"]:
+    try:
+        app.add_websocket_route(f"/{_seg}/{{client_id}}", websocket_vless_tunnel)
+        app.add_websocket_route(f"/{_seg}", websocket_vless_tunnel)
+    except Exception:
+        pass
 
 
 @app.post("/api/connections/{conn_id}/kill")

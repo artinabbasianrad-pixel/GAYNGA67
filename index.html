@@ -27,7 +27,7 @@
         ::selection { background: {{THEME_SELECTION}}; color: #fff; }
         input, textarea, select, .mono, pre, code, #log-output, td, .form-label, th, p { user-select: text !important; -webkit-user-select: text !important; }
         .btn, .nav-item, .custom-checkbox, .switch { user-select: none !important; -webkit-user-select: none !important; }
-        button:focus-visible, a:focus-visible, .nav-item:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--border-hover); outline-offset: 2px; }
+        button:focus-visible, a:focus-visible, .nav-item:focus-visible, .bn-item:focus-visible, .conn-row:focus-visible, .ph-chip:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--border-hover); outline-offset: 2px; }
 
         body { background-color: var(--bg-base); color: var(--text-main); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; display: flex; height: 100vh; min-height: 100vh; width: 100vw; overflow: hidden; -webkit-font-smoothing: antialiased; }
 
@@ -96,7 +96,7 @@
         #auth-overlay .logo-box svg { width: 40px; height: 40px; }
         .nav-menu { flex: 1; overflow-y: auto; padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; }
         .nav-label { font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 800; letter-spacing: 0.08em; margin: 16px 0 8px 12px; }
-        .nav-item { padding: 16px 12px; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--text-muted); font-weight: 600; transition: var(--transition); font-size: 0.85rem; }
+        .nav-item { padding: 16px 12px; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--text-muted); font-weight: 600; transition: var(--transition); font-size: 0.85rem; background: transparent; border: none; }
         .nav-item i { font-size: 1.05rem; width: 20px; text-align: center; pointer-events: none; transition: var(--transition); }
         .nav-item:hover { background-color: var(--bg-hover); color: var(--text-main); }
         .nav-item.active { background-color: var(--accent-bg); color: var(--accent); }
@@ -237,7 +237,7 @@
         .phone-item-action { margin-left: auto; opacity: 0; transition: var(--transition); }
         .phone-item:hover .phone-item-action { opacity: 1; }
 
-        .sub-entry { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; display: flex; align-items: flex-start; gap: 12px; transition: var(--transition); }
+        .sub-entry { position: relative; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; display: flex; align-items: flex-start; gap: 12px; transition: var(--transition); }
         .sub-entry:hover { border-color: var(--border-hover); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         .sub-entry-controls { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; padding-top: 6px; }
         .sub-entry-controls .btn-icon { width: 26px; height: 22px; padding: 0; font-size: 0.6rem; color: var(--text-muted); }
@@ -263,11 +263,8 @@
         .traffic-totals { display: flex; align-items: center; gap: 14px; font-size: 0.72rem; color: var(--text-muted); font-weight: 600; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
         .traffic-totals span { display: inline-flex; align-items: center; gap: 5px; }
         .traffic-totals b { color: var(--text-main); font-weight: 700; }
-        .sub-entry { position: relative; }
         #sub-entries-list .sub-entry { animation: entryIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; animation-delay: calc(var(--i, 0) * 40ms); }
         @keyframes entryIn { from { opacity: 0; transform: translateY(6px); } }
-
-        .phone-item { position: relative; }
 
         @media (max-width: 1280px) { .content-area { padding: 16px; } #loader-inner { padding: 16px; } }
         @media (max-width: 1024px) {
@@ -284,7 +281,7 @@
             #loader-inner { overflow-y: auto; padding-bottom: 8px; }
             #skel-bn { display: flex; }
             .grid-1-2 { grid-template-columns: 1fr; }
-            .sidebar { position: fixed; left: -260px; top: 0; bottom: 0; height: 100vh; box-shadow: 10px 0 30px rgba(0,0,0,0.6); }
+            .sidebar { position: fixed; left: -260px; top: 0; bottom: 0; height: 100vh; box-shadow: 10px 0 30px rgba(0,0,0,0.6); z-index: 250; }
             .sidebar.open { left: 0; }
             .topbar-logout { display: inline-flex; }
             .topbar { display: flex !important; }
@@ -471,13 +468,13 @@
         </div>
         <div class="nav-menu">
             <div class="nav-label">Core Analytics</div>
-            <div class="nav-item active" data-action="switchTab" data-tab="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</div>
-            <div class="nav-item" data-action="switchTab" data-tab="analytics"><i class="fa-solid fa-chart-line"></i> Analytics</div>
-            <div class="nav-label">Traffic Routing</div>
-            <div class="nav-item" data-action="switchTab" data-tab="clients"><i class="fa-solid fa-users"></i> Client Profiles</div>
-            <div class="nav-item" data-action="switchTab" data-tab="sublab"><i class="fa-solid fa-flask"></i> Subscription Lab</div>
-            <div class="nav-label">System</div>
-            <div class="nav-item" data-action="switchTab" data-tab="logs"><i class="fa-solid fa-terminal"></i> Console Logs</div>
+                <button type="button" class="nav-item active" data-action="switchTab" data-tab="dashboard" tabindex="0"><i class="fa-solid fa-chart-pie"></i> Dashboard</button>
+                <button type="button" class="nav-item" data-action="switchTab" data-tab="analytics" tabindex="0"><i class="fa-solid fa-chart-line"></i> Analytics</button>
+                <div class="nav-label">Traffic Routing</div>
+                <button type="button" class="nav-item" data-action="switchTab" data-tab="clients" tabindex="0"><i class="fa-solid fa-users"></i> Client Profiles</button>
+                <button type="button" class="nav-item" data-action="switchTab" data-tab="sublab" tabindex="0"><i class="fa-solid fa-flask"></i> Subscription Lab</button>
+                <div class="nav-label">System</div>
+                <button type="button" class="nav-item" data-action="switchTab" data-tab="logs" tabindex="0"><i class="fa-solid fa-terminal"></i> Console Logs</button>
         </div>
         <div class="sidebar-footer">
             <button class="btn btn-danger btn-logout" data-action="doLogout"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
@@ -486,8 +483,9 @@
     </aside>
 
     <main class="app-wrapper">
+        <div id="ws-disconnect-banner" style="display:none; background:var(--danger); color:#fff; text-align:center; padding:8px 12px; font-size:0.8rem; font-weight:600; position:fixed; top:0; left:0; right:0; z-index:9999;">Connection lost — reconnecting...</div>
         <header class="topbar hidden" id="main-topbar">
-            <button class="mobile-toggle" data-action="toggleSidebar"><i class="fa-solid fa-bars"></i></button>
+            <button class="mobile-toggle" data-action="toggleSidebar" aria-label="Toggle menu"><i class="fa-solid fa-bars"></i></button>
             <div class="mini-stats" id="mini-stats">
                 <div class="mini-stat-item" style="color:var(--accent)"><i class="fa-solid fa-arrow-down-long"></i> <span id="m-rx-mini">0.00</span> GB</div>
                 <div class="mini-stat-item" style="color:var(--info)"><i class="fa-solid fa-arrow-up-long"></i> <span id="m-tx-mini">0.00</span> GB</div>
@@ -642,7 +640,7 @@
                         <div class="panel" style="flex-shrink:0;">
                             <div class="panel-header"><div class="panel-title"><i class="fa-solid fa-user-gear text-accent"></i> Target Client</div></div>
                             <div class="panel-body" style="padding: 16px; gap: 16px;">
-                                <select class="form-control" id="sub-client" data-change="onSubClientChange" style="width: 100%;"><option value="">— Select Client —</option></select>
+                                <select class="form-control" id="sub-client" data-change="onSubClientChange" style="width: 100%;" aria-label="Target client"><option value="">— Select Client —</option></select>
                                 <button class="btn btn-primary" data-action="saveSubscriptionForClient" style="width: 100%;"><i class="fa-solid fa-floppy-disk"></i> Save Configuration</button>
                             </div>
                         </div>
@@ -695,8 +693,9 @@
                 <div class="header-section">
                     <div><h2>Console Logs</h2><p>Server audit trail, streamed over WebSocket.</p></div>
                     <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-                        <input type="text" id="log-search" class="form-control" placeholder="Search logs..." style="width:180px; padding:8px 14px; font-size:0.8rem;" data-input="filterLogs">
+                        <input type="text" id="log-search" class="form-control" placeholder="Search logs..." style="width:180px; padding:8px 14px; font-size:0.8rem;" data-input="filterLogs" aria-label="Search logs">
                         <label class="switch" title="Auto-scroll"><input type="checkbox" id="log-autoscroll" checked><span class="slider"></span></label><span style="font-size:0.75rem; color:var(--text-muted); font-weight: 600;">Auto</span>
+                        <button class="btn btn-sm" id="btn-download-logs" data-action="downloadLogs"><i class="fa-solid fa-download"></i> Download</button>
                         <button class="btn btn-danger" id="btn-clear-logs" data-action="gatewayAction" data-action-arg="clear_logs"><i class="fa-solid fa-trash"></i> Clear</button>
                     </div>
                 </div>
@@ -707,16 +706,16 @@
     </main>
 
     <nav class="bottom-nav" aria-label="Primary">
-        <div class="bn-item active" data-action="switchTab" data-tab="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</div>
-        <div class="bn-item" data-action="switchTab" data-tab="analytics"><i class="fa-solid fa-chart-line"></i> Analytics</div>
-        <div class="bn-item" data-action="switchTab" data-tab="clients"><i class="fa-solid fa-users"></i> Clients</div>
-        <div class="bn-item" data-action="switchTab" data-tab="sublab"><i class="fa-solid fa-flask"></i> Sublab</div>
-        <div class="bn-item" data-action="switchTab" data-tab="logs"><i class="fa-solid fa-terminal"></i> Logs</div>
+        <div class="bn-item active" data-action="switchTab" data-tab="dashboard" tabindex="0" role="button"><i class="fa-solid fa-chart-pie"></i> Dashboard</div>
+        <div class="bn-item" data-action="switchTab" data-tab="analytics" tabindex="0" role="button"><i class="fa-solid fa-chart-line"></i> Analytics</div>
+        <div class="bn-item" data-action="switchTab" data-tab="clients" tabindex="0" role="button"><i class="fa-solid fa-users"></i> Clients</div>
+        <div class="bn-item" data-action="switchTab" data-tab="sublab" tabindex="0" role="button"><i class="fa-solid fa-flask"></i> Sublab</div>
+        <div class="bn-item" data-action="switchTab" data-tab="logs" tabindex="0" role="button"><i class="fa-solid fa-terminal"></i> Logs</div>
     </nav>
 
     <div class="modal-overlay" id="modal-inspector">
         <div class="modal" style="max-width: 520px;">
-            <div class="modal-header"><div class="panel-title"><i class="fa-solid fa-microscope text-purple"></i> Connection Inspector</div><button class="btn-icon" style="background:none; border:none; color:var(--text-muted);" data-action="closeModal" data-action-arg="modal-inspector"><i class="fa-solid fa-times fa-lg"></i></button></div>
+            <div class="modal-header"><div class="panel-title"><i class="fa-solid fa-microscope text-purple"></i> Connection Inspector</div><button class="btn-icon" style="background:none; border:none; color:var(--text-muted);" data-action="closeModal" data-action-arg="modal-inspector" aria-label="Close"><i class="fa-solid fa-times fa-lg"></i></button></div>
             <div class="modal-body" id="inspector-body" style="font-size:0.9rem;"></div>
             <div class="modal-footer">
                 <button class="btn" data-action="closeModal" data-action-arg="modal-inspector">Close</button>
@@ -727,7 +726,7 @@
 
     <div class="modal-overlay" id="modal-client-info">
         <div class="modal" style="max-width: 620px;">
-            <div class="modal-header"><div class="panel-title"><i class="fa-solid fa-circle-info text-accent"></i> Client Info</div><button class="btn-icon" style="background:none; border:none; color:var(--text-muted);" data-action="closeModal" data-action-arg="modal-client-info"><i class="fa-solid fa-times fa-lg"></i></button></div>
+            <div class="modal-header"><div class="panel-title"><i class="fa-solid fa-circle-info text-accent"></i> Client Info</div><button class="btn-icon" style="background:none; border:none; color:var(--text-muted);" data-action="closeModal" data-action-arg="modal-client-info" aria-label="Close"><i class="fa-solid fa-times fa-lg"></i></button></div>
             <div class="modal-body" id="client-info-body" style="font-size:0.9rem;"></div>
             <div class="modal-footer">
                 <button class="btn" data-action="closeModal" data-action-arg="modal-client-info">Close</button>
@@ -748,18 +747,29 @@
 
     <div class="modal-overlay" id="modal-client">
         <div class="modal" style="max-width: 580px;">
-            <div class="modal-header"><div class="panel-title">Client Profile</div><button class="btn-icon" style="background:none; border:none; color:var(--text-muted);" data-action="closeModal" data-action-arg="modal-client"><i class="fa-solid fa-times fa-lg"></i></button></div>
+            <div class="modal-header"><div class="panel-title">Client Profile</div><button class="btn-icon" style="background:none; border:none; color:var(--text-muted);" data-action="closeModal" data-action-arg="modal-client" aria-label="Close"><i class="fa-solid fa-times fa-lg"></i></button></div>
             <div class="modal-body">
                 <input type="hidden" id="c-edit-id" value="">
                 <div class="form-grid">
-                    <div class="form-group"><label class="form-label">Remarks</label><input type="text" class="form-control" id="c-name" placeholder="Enter Remark ..."></div>
-                    <div class="form-group" id="uuid-form-group"><label class="form-label">UUID</label><div class="input-group"><input type="text" class="form-control mono" id="c-uuid" readonly><button class="btn btn-icon" id="btn-gen-uuid" data-action="genUuidInput" style="height: auto; display: none;" title="Generate new UUID"><i class="fa-solid fa-rotate-right"></i></button></div><div style="font-size:0.7rem; color:var(--text-muted); margin-top:6px;">Assigned automatically on creation; shown read-only when editing.</div></div>
-                    <div class="form-group"><label class="form-label">Expiry Date</label><input type="datetime-local" class="form-control" id="c-expiry"></div>
-                    <div class="form-group"><label class="form-label">Limit (GB) [0 = Unlim]</label><input type="number" class="form-control" id="c-limit" value="0" min="0"></div>
+                    <div class="form-group"><label class="form-label" for="c-name">Remarks</label><input type="text" class="form-control" id="c-name" placeholder="Enter Remark ..."></div>
+                    <div class="form-group"><label class="form-label" for="c-expiry">Expiry Date</label><input type="datetime-local" class="form-control" id="c-expiry"></div>
+                    <div class="form-group"><label class="form-label" for="c-limit">Limit (GB) [0 = Unlim]</label><input type="number" class="form-control" id="c-limit" value="0" min="0"></div>
+                    <div class="form-group">
+                        <label class="form-label" for="c-utls">uTLS Fingerprint</label>
+                        <select class="form-control" id="c-utls" aria-label="uTLS Fingerprint">
+                            <option value="chrome">Chrome (Default)</option>
+                            <option value="firefox">Firefox</option>
+                            <option value="safari">Safari</option>
+                            <option value="edge">Edge</option>
+                            <option value="ios">iOS</option>
+                            <option value="android">Android</option>
+                            <option value="random">Random (Rotating)</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="settings-row" style="margin-top:20px; padding:16px 0 0 0; border-top:1px solid var(--border); border-bottom:none;">
                     <div class="settings-info"><h4>Client Active</h4><p>Enable or disable this client.</p></div>
-                    <label class="switch"><input type="checkbox" id="c-active" checked><span class="slider"></span></label>
+                    <label class="switch"><input type="checkbox" id="c-active" checked aria-label="Client Active"><span class="slider"></span></label>
                 </div>
             </div>
             <div class="modal-footer"><button class="btn" data-action="closeModal" data-action-arg="modal-client">Cancel</button><button class="btn btn-primary" id="btn-save-client" data-action="saveClient"><i class="fa-solid fa-check"></i> Save Client</button></div>
@@ -768,7 +778,7 @@
 
     <div class="modal-overlay" id="modal-qr">
         <div class="modal" style="max-width: 420px; text-align:center;">
-            <div class="modal-header"><div class="panel-title">QR Connect</div><button class="btn-icon" style="background:none; border:none; color:var(--text-muted);" data-action="closeModal" data-action-arg="modal-qr"><i class="fa-solid fa-times fa-lg"></i></button></div>
+            <div class="modal-header"><div class="panel-title">QR Connect</div><button class="btn-icon" style="background:none; border:none; color:var(--text-muted);" data-action="closeModal" data-action-arg="modal-qr" aria-label="Close"><i class="fa-solid fa-times fa-lg"></i></button></div>
             <div class="modal-body" style="display:flex; flex-direction:column; align-items:center;">
                 <div class="qr-wrapper" id="qrcode"></div>
                 <textarea class="form-control mono" id="qr-text" rows="4" style="margin-top:20px; resize:none; font-size:0.75rem; width:100%;" readonly></textarea>
@@ -842,6 +852,7 @@
             if (!el) return;
             el.classList.remove('show');
             el.style.zIndex = '';
+            modalZ = Math.max(1000, modalZ - 10);
         }
 
         function showToast(msg, type) {
@@ -879,7 +890,8 @@
         function switchTab(tabId) {
             document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
             document.querySelectorAll('.bn-item').forEach(e => e.classList.remove('active'));
-            document.querySelectorAll(`.nav-item[data-tab="${tabId}"], .bn-item[data-tab="${tabId}"]`).forEach(e => e.classList.add('active'));
+            document.querySelectorAll('.nav-item').forEach(e => { if (e.dataset.tab === tabId) e.classList.add('active'); });
+            document.querySelectorAll('.bn-item').forEach(e => { if (e.dataset.tab === tabId) e.classList.add('active'); });
             document.querySelectorAll('.tab-view').forEach(e => e.classList.remove('active'));
             const target = document.getElementById('tab-' + tabId);
             if (target) target.classList.add('active');
@@ -924,9 +936,6 @@
             }
         }
 
-        function applyBootstrap(platform) {
-            if (!platform) return;
-        }
 
         
         
@@ -939,11 +948,11 @@
         function connectWs() {
             clearTimeout(wsRetryTimer);
             try { ws = new WebSocket(wsUrl()); } catch (e) { scheduleReconnect(); return; }
-            ws.onopen = function() { wsRetry = 0; };
+            ws.onopen = function() { wsRetry = 0; const b = document.getElementById('ws-disconnect-banner'); if (b) b.style.display = 'none'; };
             ws.onmessage = function(ev) {
                 try { handleWsMessage(JSON.parse(ev.data)); } catch (e) {}
             };
-            ws.onclose = function() { scheduleReconnect(); };
+            ws.onclose = function() { const b = document.getElementById('ws-disconnect-banner'); if (b) b.style.display = 'block'; scheduleReconnect(); };
             ws.onerror = function() { try { ws.close(); } catch (e) {} };
         }
         function scheduleReconnect() {
@@ -959,6 +968,7 @@
         function startHbWatchdog() {
             clearInterval(hbWatchdog);
             hbWatchdog = setInterval(function() {
+                if (!ws || ws.readyState > 1) { scheduleReconnect(); return; }
                 if (Date.now() - lastServerHb > 35000) {
                     try { ws.close(); } catch (e) {}
                     scheduleReconnect();
@@ -970,12 +980,11 @@
             const type = msg.type || '';
             const payload = msg.payload || {};
             if (type === 'hello') {
-                applyBootstrap(payload.platform);
                 applyTheme(payload.theme || BOOTSTRAP.theme);
                 if (payload.state) applyState(payload.state);
                 if (payload.telemetry) applyTelemetry(payload.telemetry);
-                if (Array.isArray(payload.logs)) {
-                    appState.logs = payload.logs.slice(-300);
+                if (payload.logs) {
+                    appState.logs = (Array.isArray(payload.logs) ? payload.logs : payload.logs.split('\n').filter(Boolean)).slice(-2000);
                     renderLogs();
                 }
                 lastServerHb = Date.now();
@@ -994,8 +1003,22 @@
             } else if (type === 'log_entry') {
                 if (payload.line) {
                     appState.logs.push(payload.line);
-                    if (appState.logs.length > 300) appState.logs.shift();
-                    renderLogs();
+                    if (appState.logs.length > 2000) appState.logs.shift();
+                    const term = document.getElementById('log-output');
+                    const search = (document.getElementById('log-search')?.value || '').toLowerCase();
+                    if (term && (!search || payload.line.toLowerCase().includes(search))) {
+                        let color = 'var(--text-main)';
+                        const lower = payload.line.toLowerCase();
+                        if (lower.includes('[warn]') || lower.includes('warning')) color = 'var(--warning)';
+                        if (lower.includes('[error]')) color = 'var(--danger)';
+                        if (lower.includes('[info]') || lower.includes('started') || lower.includes('listening')) color = 'var(--accent)';
+                        const row = document.createElement('div');
+                        row.style.cssText = 'color:' + color + '; margin-bottom:6px;';
+                        row.innerText = payload.line;
+                        term.appendChild(row);
+                        const autoScroll = document.getElementById('log-autoscroll');
+                        if (!autoScroll || autoScroll.checked) term.scrollTop = term.scrollHeight;
+                    }
                 }
             } else if (type === 'command_result') {
                 if (payload.ok) showToast(payload.message || payload.action, 'success');
@@ -1016,6 +1039,8 @@
             if (Array.isArray(state.clients)) appState.clients = state.clients;
             if (state.subClientSubscriptions) appState.subs = state.subClientSubscriptions;
             if (state.settings) appState.settings = state.settings;
+            const activeIds = new Set(appState.clients.map(c => c.id));
+            for (const cid in clientSpeedHistory) { if (!activeIds.has(cid)) delete clientSpeedHistory[cid]; }
             renderClients();
             populateSubClientSelect();
             updateClientCountMetrics();
@@ -1171,6 +1196,7 @@
 
         function applyTelemetry(t) {
             if (!t) return;
+            hideLoader();
             appState.telemetry = t;
             appState.gateway = t.gateway || appState.gateway;
             const cs = t.clientSpeeds || {};
@@ -1184,37 +1210,40 @@
             updateGatewayUI();
 
             const el = (id) => document.getElementById(id);
-            if (el('m-rx')) el('m-rx').innerHTML = `${Number(t.totalRxGb || 0).toFixed(2)} <span class="metric-sub">GB</span>`;
-            if (el('m-tx')) el('m-tx').innerHTML = `${Number(t.totalTxGb || 0).toFixed(2)} <span class="metric-sub">GB</span>`;
-            if (el('m-rx-mini')) el('m-rx-mini').innerText = Number(t.totalRxGb || 0).toFixed(2);
-            if (el('m-tx-mini')) el('m-tx-mini').innerText = Number(t.totalTxGb || 0).toFixed(2);
-            if (el('m-speed')) el('m-speed').innerHTML = `${Number(t.speedDownMbps || 0).toFixed(1)} <span class="metric-sub">/ ${Number(t.speedUpMbps || 0).toFixed(1)} Mbps</span>`;
-            if (el('m-speed-mini')) el('m-speed-mini').innerText = `${Number(t.speedDownMbps || 0).toFixed(1)} / ${Number(t.speedUpMbps || 0).toFixed(1)}`;
-            if (el('dash-conns')) el('dash-conns').innerText = String(t.connections || 0);
-            if (el('dash-mem-alloc')) el('dash-mem-alloc').innerText = `${Number(t.ramMb || 0).toFixed(0)} / ${Number(t.ramTotalMb || 512).toFixed(0)} MB`;
-            if (el('dash-cpu')) el('dash-cpu').innerText = `${Number(t.cpuPercent || 0).toFixed(1)}%`;
-            if (el('dash-disk')) el('dash-disk').innerText = `${Number(t.diskPct || 0).toFixed(1)}%`;
-            if (el('dash-uptime')) el('dash-uptime').innerText = `${Number(t.uptime30d || 0).toFixed(1)}%`;
-            if (el('a-conns')) el('a-conns').innerText = String(t.connections || 0);
-            if (el('a-uptime30')) el('a-uptime30').innerText = `${Number(t.uptime30d || 0).toFixed(1)}%`;
-            if (el('a-peak')) el('a-peak').innerText = String(t.peakConns24h || 0);
+            const v = (id, val) => { const e = el(id); if (e) e.innerText = val; };
+            const h = (id, val) => { const e = el(id); if (e) e.innerHTML = val; };
+            h('m-rx', `${Number(t.totalRxGb || 0).toFixed(2)} <span class="metric-sub">GB</span>`);
+            h('m-tx', `${Number(t.totalTxGb || 0).toFixed(2)} <span class="metric-sub">GB</span>`);
+            v('m-rx-mini', Number(t.totalRxGb || 0).toFixed(2));
+            v('m-tx-mini', Number(t.totalTxGb || 0).toFixed(2));
+            h('m-speed', `${Number(t.speedDownMbps || 0).toFixed(1)} <span class="metric-sub">/ ${Number(t.speedUpMbps || 0).toFixed(1)} Mbps</span>`);
+            v('m-speed-mini', `${Number(t.speedDownMbps || 0).toFixed(1)} / ${Number(t.speedUpMbps || 0).toFixed(1)}`);
+            v('dash-conns', String(t.connections || 0));
+            v('dash-mem-alloc', `${Number(t.ramMb || 0).toFixed(0)} / ${Number(t.ramTotalMb || 512).toFixed(0)} MB`);
+            v('dash-cpu', `${Number(t.cpuPercent || 0).toFixed(1)}%`);
+            v('dash-disk', `${Number(t.diskPct || 0).toFixed(1)}%`);
+            v('dash-uptime', `${Number(t.uptime30d || 0).toFixed(1)}%`);
+            v('a-conns', String(t.connections || 0));
+            v('a-uptime30', `${Number(t.uptime30d || 0).toFixed(1)}%`);
+            v('a-peak', String(t.peakConns24h || 0));
             updateClientCountMetrics();
             updateConnsChart(t);
-            const uf = document.getElementById('uptime-fill');
+            const uf = el('uptime-fill');
             if (uf) uf.style.width = `${Math.min(100, Number(t.uptime30d || 0))}%`;
-            if (el('cpu-bar-fill')) el('cpu-bar-fill').style.width = `${Math.min(100, Number(t.cpuPercent || 0))}%`;
-            if (el('mem-bar-fill')) el('mem-bar-fill').style.width = `${Math.min(100, (Number(t.ramTotalMb) > 0 ? (Number(t.ramMb || 0) / Number(t.ramTotalMb)) * 100 : 0))}%`;
-            if (el('disk-bar-fill')) el('disk-bar-fill').style.width = `${Math.min(100, Number(t.diskPct || 0))}%`;
+            const w = (id, val) => { const e = el(id); if (e) e.style.width = val; };
+            w('cpu-bar-fill', `${Math.min(100, Number(t.cpuPercent || 0))}%`);
+            w('mem-bar-fill', `${Math.min(100, (Number(t.ramTotalMb) > 0 ? (Number(t.ramMb || 0) / Number(t.ramTotalMb)) * 100 : 0))}%`);
+            w('disk-bar-fill', `${Math.min(100, Number(t.diskPct || 0))}%`);
             renderConnections(t.connectionDetails);
             renderClientActivity();
             renderDestinations();
             renderClientInfoModal();
             renderClients();
 
-            if (el('t-rx')) el('t-rx').innerText = Number(t.totalRxGb || 0).toFixed(2);
-            if (el('t-tx')) el('t-tx').innerText = Number(t.totalTxGb || 0).toFixed(2);
-            if (el('cf-rx')) el('cf-rx').innerText = Number(t.totalRxGb || 0).toFixed(2);
-            if (el('cf-tx')) el('cf-tx').innerText = Number(t.totalTxGb || 0).toFixed(2);
+            v('t-rx', Number(t.totalRxGb || 0).toFixed(2));
+            v('t-tx', Number(t.totalTxGb || 0).toFixed(2));
+            v('cf-rx', Number(t.totalRxGb || 0).toFixed(2));
+            v('cf-tx', Number(t.totalTxGb || 0).toFixed(2));
 
             if (trafficChart) {
                 trafficChart.data.datasets[0].data.push(t.speedDownMbps || 0);
@@ -1255,9 +1284,11 @@
         }
 
         function updateClientCountMetrics() {
-            const elc = (id) => document.getElementById(id);
-            if (elc('a-total-clients')) elc('a-total-clients').innerText = String(appState.clients.length || 0);
-            if (elc('a-active-clients')) elc('a-active-clients').innerText = String(appState.clients.filter(c => c.status).length || 0);
+            const e = (id) => document.getElementById(id);
+            const t = e('a-total-clients');
+            if (t) t.innerText = String(appState.clients.length || 0);
+            const a = e('a-active-clients');
+            if (a) a.innerText = String(appState.clients.filter(c => c.status).length || 0);
         }
 
         function updatePieChart() {
@@ -1272,7 +1303,8 @@
             } else {
                 clientPieChart.data.labels = appState.clients.map(c => c.name);
                 clientPieChart.data.datasets[0].data = usage;
-                clientPieChart.data.datasets[0].backgroundColor = [accent, '#a855f7', '#6366f1', '#3b82f6', '#f59e0b', '#ec4899'];
+                const palette = [accent, '#a855f7', '#6366f1', '#3b82f6', '#f59e0b', '#ec4899', '#10b981', '#ef4444', '#06b6d4', '#84cc16'];
+                clientPieChart.data.datasets[0].backgroundColor = usage.map((_, i) => palette[i % palette.length]);
             }
             clientPieChart.options.plugins.centerLabel.total = total;
             clientPieChart.update();
@@ -1331,18 +1363,15 @@
             });
             existing.forEach((tr, id) => { if (!seen.has(id)) tr.remove(); });
             tb.parentElement.scrollTop = scrollPos;
-            if (clientPieChart) updatePieChart();
         }
 
         function openAddClientModal() {
             document.getElementById('c-edit-id').value = '';
             document.getElementById('c-name').value = '';
-            document.getElementById('c-uuid').value = genUUID();
-            document.getElementById('c-uuid').readOnly = true;
             document.getElementById('c-limit').value = 0;
             document.getElementById('c-expiry').value = '';
             document.getElementById('c-active').checked = true;
-            document.getElementById('uuid-form-group').style.display = 'none';
+            document.getElementById('c-utls').value = 'chrome';
             openModal('modal-client');
         }
         function openEditClient(id) {
@@ -1350,15 +1379,13 @@
             if (!c) return;
             document.getElementById('c-edit-id').value = c.id;
             document.getElementById('c-name').value = c.name;
-            document.getElementById('c-uuid').value = c.id;
-            document.getElementById('c-uuid').readOnly = true;
             document.getElementById('c-limit').value = c.limit || 0;
             const expDate = c.expiry ? new Date(c.expiry) : null;
             document.getElementById('c-expiry').value = (expDate && !isNaN(expDate.getTime()))
                 ? expDate.getFullYear() + '-' + String(expDate.getMonth() + 1).padStart(2, '0') + '-' + String(expDate.getDate()).padStart(2, '0') + 'T' + String(expDate.getHours()).padStart(2, '0') + ':' + String(expDate.getMinutes()).padStart(2, '0')
                 : '';
             document.getElementById('c-active').checked = !!c.status;
-            document.getElementById('uuid-form-group').style.display = '';
+            document.getElementById('c-utls').value = c.utls || 'chrome';
             openModal('modal-client');
         }
         async function saveClient() {
@@ -1368,7 +1395,8 @@
             const payload = {
                 label: name,
                 limit_value: parseFloat(document.getElementById('c-limit').value) || 0,
-                active: document.getElementById('c-active').checked
+                active: document.getElementById('c-active').checked,
+                utls: document.getElementById('c-utls').value || 'chrome'
             };
             const expiryVal = document.getElementById('c-expiry').value;
             if (expiryVal) payload.expiry = new Date(expiryVal).toISOString();
@@ -1427,6 +1455,13 @@
             if (sec < 3600) return Math.floor(sec / 60) + 'm ' + (sec % 60) + 's';
             return Math.floor(sec / 3600) + 'h ' + Math.floor((sec % 3600) / 60) + 'm';
         }
+        function formatBps(bps) {
+            if (!bps || bps <= 0) return '0';
+            if (bps >= 1e9) return (bps/1e9).toFixed(1) + ' Gb/s';
+            if (bps >= 1e6) return (bps/1e6).toFixed(1) + ' Mb/s';
+            if (bps >= 1e3) return (bps/1e3).toFixed(0) + ' Kb/s';
+            return bps.toFixed(0) + ' b/s';
+        }
         function fmtBytes(b) {
             b = b || 0;
             if (b >= (1 << 30)) return (b / (1 << 30)).toFixed(2) + ' GB';
@@ -1464,6 +1499,11 @@
                     <div class="conn-main">
                         <div class="conn-title">${esc(c.client_name)} → ${esc(c.dest)}:${c.dest_port}</div>
                         <div class="conn-sub">${esc(loc)} • ${esc((c.protocol || 'tcp').toUpperCase())} • ${fmtDur(c.duration_sec)}</div>
+                        <div style="display:flex; gap:12px; margin-top:2px; font-size:0.72rem; color:var(--text-muted);">
+                            <span>RTT: <span style="color:${(c.rtt_ms||0) < 50 ? 'var(--success)' : (c.rtt_ms||0) < 200 ? 'var(--warning)' : 'var(--danger)'}">${(c.rtt_ms||0).toFixed(0)}ms</span></span>
+                            <span>ID: ${esc(c.id)}</span>
+                            ${c.ed ? '<span>ED</span>' : ''}
+                        </div>
                     </div>
                     <div class="conn-stats">
                         <span style="color:var(--accent);">↓ ${fmtSpeed(c.down_bps)}</span>
@@ -1488,17 +1528,22 @@
                 const lim = Number(c.limit || 0);
                 const pct = lim > 0 ? Math.min(100, (used / lim) * 100) : 0;
                 const barColor = pct > 90 ? 'background:var(--danger);' : (pct > 75 ? 'background:var(--warning);' : '');
+                const connCount = (appState.telemetry.connectionDetails||[]).filter(x=>x.client_id===c.id).length;
                 return `
                     <div class="conn-row" style="cursor:default; align-items:flex-start;">
                         <div class="conn-flag" style="padding-top:3px;"><i class="fa-solid fa-user" style="color:var(--accent);"></i></div>
                         <div class="conn-main">
                             <div style="display:flex; align-items:center; gap:10px; min-width:0;">
                                 <div class="conn-title" style="flex:1; min-width:0;">${esc(c.name)}</div>
-                                <span class="speed-badge" style="margin-top:0; flex-shrink:0;"><span class="dl">↓ ${fmtSpeed(sp.down_bps)}</span><span class="ul"> ↑ ${fmtSpeed(sp.up_bps)}</span></span>
+                                <span style="display:inline-flex; gap:4px; flex-shrink:0;">
+                                    <span class="speed-badge" style="background:rgba(34,197,94,0.15);color:var(--success);font-size:0.7rem;">↓${formatBps(sp.down_bps)}</span>
+                                    <span class="speed-badge" style="background:rgba(59,130,246,0.15);color:#3b82f6;font-size:0.7rem;">↑${formatBps(sp.up_bps)}</span>
+                                </span>
                             </div>
                             <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
                                 <div class="uptime-bar" style="flex:1; margin-top:0;"><div class="uptime-fill" style="width:${pct}%; ${barColor}"></div></div>
                                 <span class="mono" style="font-size:0.65rem; color:var(--text-muted); white-space:nowrap;">${used.toFixed(2)} / ${lim === 0 ? '∞' : lim + ' GB'}</span>
+                                <span style="color:var(--text-muted); font-size:0.72rem;">${connCount} conn</span>
                             </div>
                         </div>
                     </div>`;
@@ -1518,6 +1563,7 @@
                 agg[key].bytes += (c.rx_bytes || 0) + (c.tx_bytes || 0);
             });
             const list = Object.values(agg);
+            const totalBytes = list.reduce((a, b) => a + b.bytes, 0);
             const sig = list.map(a => a.key + ':' + a.count + ':' + a.bytes).join(',');
             if (box.dataset.sig === sig) return;
             box.dataset.sig = sig;
@@ -1528,17 +1574,17 @@
                         <div class="conn-title">${esc(a.key)} <span class="tag tag-blue" style="font-size:0.6rem; margin-left:6px;">${esc(a.proto)}</span></div>
                         <div class="conn-sub">${a.count} active connection${a.count > 1 ? 's' : ''}</div>
                     </div>
-                    <div class="conn-stats"><span style="color:var(--text-muted);">${fmtBytes(a.bytes)}</span></div>
+                    <div class="conn-stats"><span style="color:var(--text-muted);">${fmtBytes(a.bytes)}</span><span style="color:var(--text-muted); font-size:0.75rem;">${totalBytes > 0 ? ((a.bytes/totalBytes)*100).toFixed(1) : 0}%</span></div>
                 </div>`).join('');
-            box.innerHTML = rows || '<div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:22px 0;">No active traffic</div>';
+            box.innerHTML = rows || '<div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:22px 0;">No destinations yet — traffic will appear here once connections are active.</div>';
         }
 
-        let inspectedConn = null;
+        let inspectedConnId = null;
         function inspectConn(connId) {
             const details = (appState.telemetry && appState.telemetry.connectionDetails) || [];
             const c = details.find(x => x.id === connId);
             if (!c) { showToast('Connection no longer active', 'error'); return; }
-            inspectedConn = c;
+            inspectedConnId = connId;
             const geo = c.geo || {};
             const loc = geo.country ? ((geo.city ? geo.city + ', ' : '') + geo.country) : (c.peer_ip || '—');
             document.getElementById('inspector-body').innerHTML = `
@@ -1554,11 +1600,14 @@
             openModal('modal-inspector');
         }
         function killConn() {
-            if (!inspectedConn) return;
-            customConfirm(`Terminate connection to ${inspectedConn.dest}:${inspectedConn.dest_port}?`, async (res) => {
+            if (!inspectedConnId) return;
+            const details = (appState.telemetry && appState.telemetry.connectionDetails) || [];
+            const conn = details.find(x => x.id === inspectedConnId);
+            if (!conn) { showToast('Connection no longer active', 'error'); closeModal('modal-inspector'); return; }
+            customConfirm(`Terminate connection to ${conn.dest}:${conn.dest_port}?`, async (res) => {
                 if (!res) return;
                 try {
-                    const r = await fetch('/api/connections/' + encodeURIComponent(inspectedConn.id) + '/kill', { method: 'POST', headers: csrfHeaders() });
+                    const r = await fetch('/api/connections/' + encodeURIComponent(conn.id) + '/kill', { method: 'POST', headers: csrfHeaders() });
                     if (r.status === 401) { showAuthRequired(); return; }
                     const d = await r.json();
                     if (!d.ok) throw new Error(d.error || 'kill failed');
@@ -1586,7 +1635,24 @@
             const arg = el.getAttribute('data-action-arg');
             const id = el.getAttribute('data-id');
             if (action === 'switchTab') { switchTab(el.getAttribute('data-tab')); e.preventDefault(); }
-            else if (action === 'toggleSidebar') document.getElementById('sidebar').classList.toggle('open');
+            else if (action === 'downloadLogs') downloadLogs();
+            else if (action === 'toggleSidebar') {
+                const sb = document.getElementById('sidebar');
+                sb.classList.toggle('open');
+                if (sb.classList.contains('open')) {
+                    let bd = document.getElementById('sidebar-backdrop');
+                    if (!bd) {
+                        bd = document.createElement('div');
+                        bd.id = 'sidebar-backdrop';
+                        bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:240;';
+                        bd.addEventListener('click', function() { sb.classList.remove('open'); bd.remove(); });
+                        document.body.appendChild(bd);
+                    }
+                } else {
+                    const bd = document.getElementById('sidebar-backdrop');
+                    if (bd) bd.remove();
+                }
+            }
             else if (action === 'doLogout') doLogout(e);
             else if (action === 'gatewayAction') gatewayAction(arg);
             else if (action === 'addSubEntry') addSubEntry(arg);
@@ -1595,7 +1661,6 @@
             else if (action === 'closeModal') closeModal(arg);
             else if (action === 'openAddClientModal') openAddClientModal();
             else if (action === 'saveClient') saveClient();
-            else if (action === 'genUuidInput') document.getElementById('c-uuid').value = genUUID();
             else if (action === 'copyQrText') { copyToClipboard(document.getElementById('qr-text').value); showToast('Copied to clipboard!', 'success'); }
             else if (action === 'showQR') showQR(id);
             else if (action === 'showClientInfo') showClientInfo(id);
@@ -1720,9 +1785,17 @@
         }
 
         function renderClientSparkline(hist) {
-            if (clientSparklineChart) { clientSparklineChart.destroy(); clientSparklineChart = null; }
+            if (!window.Chart) return;
+            if (clientSparklineChart) {
+                const ds = clientSparklineChart.data.datasets;
+                ds[0].data = hist.down;
+                ds[1].data = hist.up;
+                clientSparklineChart.data.labels = Array(Math.max(hist.down.length, hist.up.length, 2)).fill('');
+                clientSparklineChart.update('none');
+                return;
+            }
             const canvas = document.getElementById('client-speed-sparkline');
-            if (!canvas || !window.Chart) return;
+            if (!canvas) return;
             const accent = (BOOTSTRAP.theme && BOOTSTRAP.theme.accent) || '#8b5cf6';
             const len = Math.max(hist.down.length, hist.up.length, 2);
             clientSparklineChart = new Chart(canvas.getContext('2d'), {
@@ -1764,8 +1837,9 @@
             const sel = document.getElementById('sub-client');
             if (!sel) return;
             const prev = sel.value;
-            sel.innerHTML = '<option value="">— Select Client —</option>';
-            appState.clients.forEach(c => sel.innerHTML += `<option value="${esc(c.id)}">${esc(c.name)}</option>`);
+            let html = '<option value="">— Select Client —</option>';
+            appState.clients.forEach(c => { html += '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; });
+            sel.innerHTML = html;
             if (prev && appState.clients.some(c => c.id === prev)) {
                 sel.value = prev;
             } else if (appState.clients.length > 0) {
@@ -1823,7 +1897,7 @@
                     <div class="sub-entry-body">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span class="sub-entry-type" style="color:${entry.type === 'proxy' ? 'var(--accent)' : 'var(--info)'}">${esc(entry.type.toUpperCase())}</span>
-                            <i class="fa-solid fa-times" style="cursor:pointer; color:var(--danger); padding:4px;" data-action="removeSubEntry" data-id="${esc(entry.id)}"></i>
+                            <button class="btn-icon btn-danger" aria-label="Remove entry" data-action="removeSubEntry" data-id="${esc(entry.id)}"><i class="fa-solid fa-times"></i></button>
                         </div>
                         <input type="text" class="form-control" style="padding:8px 12px; font-size:0.8rem;" value="${esc(entry.name)}" data-input="updateSubEntryName" data-entry-id="${esc(entry.id)}">
                         ${entry.type === 'proxy'
@@ -1932,14 +2006,22 @@
         
         
         
+        function downloadLogs() {
+            const logs = appState.logs || [];
+            if (!logs.length) return showToast('No logs to download', 'error');
+            const blob = new Blob([logs.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `v2leafy-logs-${new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('Logs downloaded', 'success');
+        }
+
         async function gatewayAction(action) {
-            if (action === 'clear_logs') {
-                // Server wipes its console store on clear; drop our local mirror too so
-                // stale lines don't linger until the next reconnect. The server's
-                // 'Console logs cleared' log_entry then appends onto a clean slate.
-                appState.logs = [];
-                renderLogs();
-            }
             try {
                 const res = await fetch('/api/action', {
                     method: 'POST', headers: csrfHeaders(), body: JSON.stringify({ action })
@@ -1947,7 +2029,12 @@
                 if (res.status === 401) { showAuthRequired(); return; }
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'command failed');
-                if (action !== 'clear_logs') showToast(`Gateway ${action} executed`, 'success');
+                if (action === 'clear_logs') {
+                    appState.logs = [];
+                    renderLogs();
+                } else {
+                    showToast(`Gateway ${action} executed`, 'success');
+                }
             } catch (e) { showToast('Command failed: ' + e.message, 'error'); }
         }
 
@@ -1958,7 +2045,7 @@
             const term = document.getElementById('log-output');
             if (!term) return;
             const search = (document.getElementById('log-search')?.value || '').toLowerCase();
-            term.innerHTML = '';
+            const frag = document.createDocumentFragment();
             appState.logs.forEach(line => {
                 if (search && !line.toLowerCase().includes(search)) return;
                 let color = 'var(--text-main)';
@@ -1969,8 +2056,10 @@
                 const row = document.createElement('div');
                 row.style.cssText = `color:${color}; margin-bottom:6px;`;
                 row.innerText = line;
-                term.appendChild(row);
+                frag.appendChild(row);
             });
+            term.innerHTML = '';
+            term.appendChild(frag);
             const autoScroll = document.getElementById('log-autoscroll');
             if (!autoScroll || autoScroll.checked) term.scrollTop = term.scrollHeight;
         }
@@ -2011,7 +2100,7 @@
             const p2 = document.getElementById('confirm-pass-input')?.value;
             setAuthError('');
             if (!p1) return setAuthError('Password cannot be empty');
-            if (p1.length < 4) return setAuthError('Password must be at least 4 characters');
+            if (p1.length < 8) return setAuthError('Password must be at least 8 characters');
             if (p1 !== p2) return setAuthError('Passwords do not match');
             fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass: p1 }) })
                 .then(async r => {
@@ -2068,7 +2157,6 @@
         
         
         window.addEventListener('DOMContentLoaded', function() {
-            applyBootstrap(BOOTSTRAP.platform);
             applyTheme(BOOTSTRAP.theme);
 
             if (!passSetup) {
@@ -2087,12 +2175,29 @@
                 if (loggedIn && passSetup) {
                     connectWs();
                     
-                    setTimeout(hideLoader, 12000);
+                    setTimeout(hideLoader, 5000);
                 } else {
                     
                     hideLoader();
                 }
             }, 200);
+
+            let resizeTimer = null;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function() {
+                    const activeTab = document.querySelector('.tab-view.active');
+                    if (activeTab) {
+                        const tabId = activeTab.id.replace('tab-', '');
+                        const topbar = document.getElementById('main-topbar');
+                        if (tabId === 'dashboard' && window.innerWidth > 1024) {
+                            topbar.classList.add('hidden');
+                        } else {
+                            topbar.classList.remove('hidden');
+                        }
+                    }
+                }, 150);
+            });
         });
     </script>
 </body>
